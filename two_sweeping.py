@@ -16,17 +16,6 @@ from base import *
 poly_decomp_path = 'D:/study/phd_research/main/polygon_sweeping/poly_decomp_cgal/Debug/poly_decomp_cgal.exe'
 
 
-# Will need to change this later
-# class Graph():
-#     def __init__(self, vertices):
-#         self.V = range(len(vertices))
-#         self.graph = [[0.0] * len(vertices) for x in vertices]
-#
-#
-#
-#     def stp(self):
-#         abc = 1
-
 def create_vis_graph(vertices):
     graph = Graph()
     for i in range(len(vertices)):
@@ -73,8 +62,13 @@ class PolyNode:
         return l
 
 
-
 def share_edge(poly1: PolyNode, poly2: PolyNode):
+    """
+    Check if two poly nodes share an edge
+    :param poly1: PolyNode
+    :param poly2: PolyNode
+    :return: Boolean, True if they share one, False otherwise
+    """
     for i in range(len(poly1.verts)):
         for j in range(len(poly2.verts)):
             i1 = i
@@ -104,8 +98,8 @@ def create_edge(poly_nodes: List[PolyNode]):
                 poly_nodes[j].edge.append(poly_nodes[i])
 
 
-def poly_decomp_cgal(verts):
-    """ Decompose a polygon into convex components (optimally), coordinates are int
+def poly_decomp_cgal(verts: List[List[float]]) -> List[List[List[float]]]:
+    """ Decompose a polygon into convex components (optimally) using CGAL, coordinates are int
     """
     polygons = []
     arg = poly_decomp_path + ' --verts='
@@ -134,6 +128,12 @@ def poly_decomp_cgal(verts):
 
 
 def find_root_node(poly_nodes: List[PolyNode], agents: List[List[float]]) -> PolyNode:
+    """
+    Find the subpolygon in which the two agents are
+    :param poly_nodes: list of all polygonal nodes
+    :param agents: positions of the two agents (an edge)
+    :return: PolyNode, root node
+    """
     for node in poly_nodes:
         for i in range(len(node.verts)):
             i1 = i
@@ -147,6 +147,12 @@ def find_root_node(poly_nodes: List[PolyNode], agents: List[List[float]]) -> Pol
 
 
 def edge_in_poly(poly: PolyNode, edge: List[List[float]]):
+    """
+    Check if an edge (two 2D points) belongs to a PolyNode
+    :param poly: PolyNode
+    :param edge: List of two 2D points
+    :return: True if yes, otherwise False
+    """
     for i in range(len(poly.verts)):
         i1 = i
         i2 = (i+1) % len(poly.verts)
@@ -173,12 +179,21 @@ def append_correct(schedule: List[List[float]], new_edge: List[float]):
     schedule.append(new_edge)
 
 
-# i1 < j1 < j2 < i2 < i1 (counter clockwise):
-# i1--...---i2
-# |          |
-# |          |
-# j1--...---j2
 def compute_sweep_time(i1, j1, i2, j2, verts):
+    """
+    Compute sweeping time from edge (i1, j1) to edge (i2, j2), in the convex polygon depicted in verts
+    i1 < j1 < j2 < i2 < i1 (counter clockwise):
+    i1---...---i2
+    |           |
+    |           |
+    j1---...---j2
+    :param i1: integer index
+    :param j1: integer index
+    :param i2: integer index
+    :param j2: integer index
+    :param verts: list of the polygon vertices
+    :return: float, sweeping time
+    """
     d1 = 0
     n = len(verts)
     while j1 != j2:
@@ -193,12 +208,14 @@ def compute_sweep_time(i1, j1, i2, j2, verts):
     return max(d1, d2)
 
 
-# i1 < j1 < j2 < i2 < i1 (counter clockwise):
-# i1--...---i2
-# |          |
-# |          |
-# j1--...---j2
 def edge_moving_distance(e1, root, neighbor):
+    """
+    Compute the edge moving (sweeping) distance from e1 to the incidence edge between its root and its neighbor
+    :param e1: the edge
+    :param root: current node
+    :param neighbor: child node
+    :return: float, moviing distance (sweeping time)
+    """
     i1 = root.verts.index(e1[0])
     j1 = root.verts.index(e1[1])
     if (i1 + 1) % len(root.verts) != j1:
@@ -212,25 +229,18 @@ def edge_moving_distance(e1, root, neighbor):
             if (i2 - 1) % len(root.verts) != j2:
                 i2, j2 = j2, i2
 
-            # di = 0
-            # if (i2 != i1):
-            #     di += l2_dist(root.verts[i2], root.verts[(i2 - 1) % len(root.verts)])
-            #     while (i2 - 1) % len(root.verts) != i1:
-            #         i2 = (i2 - 1) % len(root.verts)
-            #         di += l2_dist(root.verts[i2], root.verts[(i2 - 1) % len(root.verts)])
-            #
-            # dj = 0
-            # if (j2 != j1):
-            #     dj = l2_dist(root.verts[j2], root.verts[(j2 + 1) % len(root.verts)])
-            #     while (j2 + 1) % len(root.verts) != j1:
-            #         j2 = (j2 + 1) % len(root.verts)
-            #         dj += l2_dist(root.verts[j2], root.verts[(j2 + 1) % len(root.verts)])
-
             return compute_sweep_time(i1, j1, i2, j2, root.verts)
 
 
 def find_cloest_neighbor(root, e, neighbors):
-    if (len(neighbors) == 1):
+    """
+    Find the neighbor of root that has the smallest sweeping time from edge e
+    :param root: current polygon
+    :param e: the edge to query
+    :param neighbors: all neighbors of root
+    :return: int, index of the best neighbor
+    """
+    if len(neighbors) == 1:
         return 0
 
     min_ind = 0
@@ -245,6 +255,17 @@ def find_cloest_neighbor(root, e, neighbors):
 
 
 def dfs(polygons, root:PolyNode, polygon, vis_graph, pred_sib_edges, agents):
+    """
+    The main function for sweeping with two agents
+    :param polygons:
+    :param root:
+    :param polygon:
+    :param vis_graph:
+    :param pred_sib_edges:
+    :param agents:
+    :return:
+    """
+
     root.visited = True
     schedule_r = []
 
@@ -561,16 +582,17 @@ if __name__ == '__main__':
     plt.ion()
     abc = 1
     speed = 15
-    polygon = [[0, 0], [10, 0], [10, 10], [20, 20], [17, 28], [15, 30], [7, 15], [3, 15], [-5, 30], [-10, 20], [0, 10]]
-    agents = [[0, 0], [10, 0]]
+    # polygon = [[0, 0], [10, 0], [10, 10], [20, 20], [17, 28], [15, 30], [7, 15], [3, 15], [-5, 30], [-10, 20], [0, 10]]
+    # agents = [[0, 0], [10, 0]]
 
-    # polygon = [[0, 0], [37, 0], [37, 8], [36, 11], [36, 22], [33, 22], [28, 24], [27, 20], [31, 21],
-    #           [30, 19], [20, 19], [22, 24], [14, 16], [20, 14], [30, 14],
-    #           [32, 11], [0, 10]]
-    # agents = [[0, 0], [0, 10]]
+    polygon = [[0, 0], [37, 0], [37, 8], [36, 11], [36, 22], [33, 22], [28, 24], [27, 20], [31, 21],
+              [30, 19], [20, 19], [22, 24], [14, 16], [20, 14], [30, 14],
+              [32, 11], [0, 10]]
+    agents = [[0, 0], [0, 10]]
 
-    #polygon = [[0, 0], [40, 0], [40, 10], [38, 10], [38, 20]]
-    #agents = [[0, 10], [0, 0]]
+    # polygon = [[0, 0], [40, 0], [40, 10], [38, 10], [38, 20]]
+    # agents = [[0, 10], [0, 0]]
+
     # polygon = [[40, 0], [0, 60], [10, 50], [22, 55], [20, 45], [30, 42], [27, 50],
     #            [40, 40], [53, 50], [50, 42], [60, 45], [58, 55], [70, 50], [80, 60]]
     # polygon = polygon[::-1]
