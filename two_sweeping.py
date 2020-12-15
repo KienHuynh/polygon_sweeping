@@ -157,7 +157,14 @@ def edge_in_poly(poly: PolyNode, edge: List[List[float]]):
     return False
 
 
-def append_correct(schedule, new_edge):
+def append_correct(schedule: List[List[float]], new_edge: List[float]):
+    """
+    Append a new edge to the schedule correctly.
+    This solves the case in which two agents have to cross themselves to move on to the new edge (they don't have to)
+    :param schedule: old schedule (i.e. list of edges)
+    :param new_edge: new edge, a pair of 2 floats
+    :return:
+    """
     old_edge = schedule[-1]
     if intersectProp(old_edge[0], new_edge[0], old_edge[1], new_edge[1]):
         new_edge[0], new_edge[1] = new_edge[1], new_edge[0]
@@ -165,16 +172,36 @@ def append_correct(schedule, new_edge):
         new_edge[0], new_edge[1] = new_edge[1], new_edge[0]
     schedule.append(new_edge)
 
-# The orderof i1, j1, i2 and j2 should be as follow (counter clockwise vertex index):
-# j1--...---j2
-# |          |
-# |          |
-# i1--...---i2
 
+# i1 < j1 < j2 < i2 < i1 (counter clockwise):
+# i1--...---i2
+# |          |
+# |          |
+# j1--...---j2
+def compute_sweep_time(i1, j1, i2, j2, verts):
+    d1 = 0
+    n = len(verts)
+    while j1 != j2:
+        d1 += l2_dist(verts[j1], verts[(j1 + 1) % n])
+        j1 = (j1 + 1) % n
+
+    d2 = 0
+    while i2 != i1:
+        d2 += l2_dist(verts[i2], verts[(i2 + 1) % n])
+        i2 = (i2 + 1) % n
+
+    return max(d1, d2)
+
+
+# i1 < j1 < j2 < i2 < i1 (counter clockwise):
+# i1--...---i2
+# |          |
+# |          |
+# j1--...---j2
 def edge_moving_distance(e1, root, neighbor):
     i1 = root.verts.index(e1[0])
     j1 = root.verts.index(e1[1])
-    if (i1 - 1) % len(root.verts) != j1:
+    if (i1 + 1) % len(root.verts) != j1:
         i1, j1 = j1, i1
 
     for k in range(len(neighbor.verts)):
@@ -182,24 +209,24 @@ def edge_moving_distance(e1, root, neighbor):
         if edge_in_poly(root, e2):
             i2 = root.verts.index(e2[0])
             j2 = root.verts.index(e2[1])
-            if (i2 + 1) % len(root.verts) != j2:
+            if (i2 - 1) % len(root.verts) != j2:
                 i2, j2 = j2, i2
 
-            di = 0
-            if (i2 != i1):
-                di += l2_dist(root.verts[i2], root.verts[(i2 - 1) % len(root.verts)])
-                while (i2 - 1) % len(root.verts) != i1:
-                    i2 = (i2 - 1) % len(root.verts)
-                    di += l2_dist(root.verts[i2], root.verts[(i2 - 1) % len(root.verts)])
+            # di = 0
+            # if (i2 != i1):
+            #     di += l2_dist(root.verts[i2], root.verts[(i2 - 1) % len(root.verts)])
+            #     while (i2 - 1) % len(root.verts) != i1:
+            #         i2 = (i2 - 1) % len(root.verts)
+            #         di += l2_dist(root.verts[i2], root.verts[(i2 - 1) % len(root.verts)])
+            #
+            # dj = 0
+            # if (j2 != j1):
+            #     dj = l2_dist(root.verts[j2], root.verts[(j2 + 1) % len(root.verts)])
+            #     while (j2 + 1) % len(root.verts) != j1:
+            #         j2 = (j2 + 1) % len(root.verts)
+            #         dj += l2_dist(root.verts[j2], root.verts[(j2 + 1) % len(root.verts)])
 
-            dj = 0
-            if (j2 != j1):
-                dj = l2_dist(root.verts[j2], root.verts[(j2 + 1) % len(root.verts)])
-                while (j2 + 1) % len(root.verts) != j1:
-                    j2 = (j2 + 1) % len(root.verts)
-                    dj += l2_dist(root.verts[j2], root.verts[(j2 + 1) % len(root.verts)])
-
-            return max(di, dj)
+            return compute_sweep_time(i1, j1, i2, j2, root.verts)
 
 
 def find_cloest_neighbor(root, e, neighbors):
@@ -244,47 +271,83 @@ def dfs(polygons, root:PolyNode, polygon, vis_graph, pred_sib_edges, agents):
         l = l2_dist(agents[0], agents[1])
         poly_len = root.length()
 
+        # i1 < j1 < j2 < i2 < i1 (counter clockwise)
+        # i1---...---i2
+        # |           |
+        # |           |
+        # j1---...---j2
         i1 = root.verts.index(agents[0])
         j1 = root.verts.index(agents[1])
         if (i1 + len(root.verts) - 1) % len(root.verts) == j1:
             i1, j1 = j1, i1
-
-        #schedule_r.append([root.verts[i1], root.verts[j1]])
-        # if i1 == j1:
-        #     j1_ = j1
-        #     j1 = (j1 + 1) % len(root.verts)
-        #     l = l2_dist(root.verts[j1], root.verts[j1_])
-        #     i1 = (i1 + len(root.verts) - 1) % len(root.verts)
-        #     l += l2_dist(root.verts[i1], root.verts[j1_])
-
         schedule_r.append([root.verts[i1], root.verts[j1]])
 
-        to_cover_len = (poly_len - l) / 2.0
-        l0 = 0
-        while l0 <= to_cover_len:
-            i2 = (i1 + len(root.verts) - 1) % len(root.verts)
-            j2 = (j1 + 1) % len(root.verts)
-            if (l0 + l2_dist(root.verts[j1], root.verts[j2])) > to_cover_len:
+        # to_cover_len = (poly_len - l) / 2.0
+        # l0 = 0
+        # while l0 <= to_cover_len:
+        #     i2 = (i1 + len(root.verts) - 1) % len(root.verts)
+        #     j2 = (j1 + 1) % len(root.verts)
+        #     if (l0 + l2_dist(root.verts[j1], root.verts[j2])) > to_cover_len:
+        #
+        #         #schedule_r.append([root.verts[j1], root.verts[j2]])
+        #         append_correct(schedule_r, [root.verts[j1], root.verts[j2]])
+        #         break
+        #     else:
+        #         l0 = l0 + l2_dist(root.verts[j1], root.verts[j2])
+        #
+        #     if i2 == j2:
+        #         dj = l2_dist(root.verts[j1], root.verts[j2])
+        #         di = l2_dist(root.verts[i1], root.verts[i2])
+        #         if di < dj:
+        #             append_correct(schedule_r, [root.verts[i2], root.verts[j1]])
+        #         else:
+        #             append_correct(schedule_r, [root.verts[i1], root.verts[j2]])
+        #         break
+        #
+        #     i1 = i2
+        #     j1 = j2
 
-                #schedule_r.append([root.verts[j1], root.verts[j2]])
-                append_correct(schedule_r, [root.verts[j1], root.verts[j2]])
-                break
+        best_edge_ind = -1
+        best_sweep_time = float('inf')
+        for k in range(len(root.verts)):
+            j2 = k
+            i2 = (k + 1) % len(root.verts)
+            if j2 == i1:
+                continue
+            sweep_time = compute_sweep_time(copy.copy(i1), copy.copy(j1), i2, j2, root.verts)
+            if sweep_time < best_sweep_time:
+                best_sweep_time = sweep_time
+                best_edge_ind = k
+
+        j2 = best_edge_ind
+        i2 = (best_edge_ind + 1) % len(root.verts)
+        di = 0
+        dj = 0
+        while i1 != i2 or j1 != j2:
+            if i1 != i2:
+                new_di = di + l2_dist(root.verts[(i1 - 1) % len(root.verts)], root.verts[i1])
             else:
-                l0 = l0 + l2_dist(root.verts[j1], root.verts[j2])
+                new_di = di
+                j1 = (j1 + 1) % len(root.verts)
+                schedule_r.append([root.verts[i1], root.verts[j1]])
+                continue
 
-            if i2 == j2:
-                dj = l2_dist(root.verts[j1], root.verts[j2])
-                di = l2_dist(root.verts[i1], root.verts[i2])
-                if di < dj:
-                    append_correct(schedule_r, [root.verts[i2], root.verts[j1]])
-                else:
-                    append_correct(schedule_r, [root.verts[i1], root.verts[j2]])
-                break
+            if j1 != j2:
+                new_dj = dj + l2_dist(root.verts[(j1 + 1) % len(root.verts)], root.verts[j1])
+            else:
+                new_dj = dj
+                i1 = (i1 - 1) % len(root.verts)
+                schedule_r.append([root.verts[i1], root.verts[j1]])
+                continue
 
-            i1 = i2
-            j1 = j2
+            if new_di < new_dj:
+                i1 = (i1 - 1) % len(root.verts)
+            else:
+                j1 = (j1 + 1) % len(root.verts)
+            schedule_r.append([root.verts[i1], root.verts[j1]])
 
-            #schedule_r.append()
+        #append_correct(schedule_r, [root.verts[j2], root.verts[i2]])
+
         schedule = [schedule_r]
         if len(pred_sib_edges) == 0:
             return schedule
@@ -293,7 +356,6 @@ def dfs(polygons, root:PolyNode, polygon, vis_graph, pred_sib_edges, agents):
         # This is not a good way to do it
         next_edge = pred_sib_edges[0]
         next_edge = [polygon.index(e) for e in next_edge]
-
 
         min_d = float('inf')
         convergent_point = -1
@@ -314,7 +376,8 @@ def dfs(polygons, root:PolyNode, polygon, vis_graph, pred_sib_edges, agents):
                 else:
                     next_point = next_edge[1]
 
-        schedule[-1] += [[polygon[convergent_point], polygon[convergent_point]]]
+        schedule_r = [schedule_r[-1]] + [[polygon[convergent_point], polygon[convergent_point]]]
+        schedule.append(schedule_r)
         schedule += [[[polygon[convergent_point], polygon[convergent_point]]]]
 
         dijkstra = DijkstraSPF(vis_graph, convergent_point)
@@ -500,10 +563,11 @@ if __name__ == '__main__':
     speed = 15
     polygon = [[0, 0], [10, 0], [10, 10], [20, 20], [17, 28], [15, 30], [7, 15], [3, 15], [-5, 30], [-10, 20], [0, 10]]
     agents = [[0, 0], [10, 0]]
-    polygon = [[0, 0], [37, 0], [37, 8], [36, 11], [36, 22], [33, 22], [28, 24], [27, 20], [31, 21],
-              [30, 19], [20, 19], [22, 24], [14, 16], [20, 14], [30, 14],
-              [32, 11], [0, 10]]
-    agents = [[0, 0], [0, 10]]
+
+    # polygon = [[0, 0], [37, 0], [37, 8], [36, 11], [36, 22], [33, 22], [28, 24], [27, 20], [31, 21],
+    #           [30, 19], [20, 19], [22, 24], [14, 16], [20, 14], [30, 14],
+    #           [32, 11], [0, 10]]
+    # agents = [[0, 0], [0, 10]]
 
     #polygon = [[0, 0], [40, 0], [40, 10], [38, 10], [38, 20]]
     #agents = [[0, 10], [0, 0]]
