@@ -1,3 +1,8 @@
+"""
+This file provides basic functions to check for line segment intersection
+and for checking the validity of a diagonal in a simple polygon
+"""
+
 def area2(a, b, c):
     return (b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])
 
