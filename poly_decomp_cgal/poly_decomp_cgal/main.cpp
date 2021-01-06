@@ -59,36 +59,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	/*std::ofstream myfile("");
-	myfile.open("poly_decomp_out.txt");
-	myfile << partition_polys.size() << std::endl;
-	for (const Polygon_2& poly : partition_polys) {
-		myfile << poly.size() << std::endl;
-		for (Point_2 p : poly.container()) {
-			myfile << points[p] << std::endl;
-		}
-	}
-	myfile.close();*/
-
-	// TODO
-	/*myfile << scenario.overallTime << std::endl;
-	myfile << scenario.points.size() << std::endl;
-	for (int a = 0; a < scenario.activeID.size(); a++) {
-		int pairID = scenario.activeID[a];
-		myfile << pairID << " " << scenario.bestTimes[a] << std::endl;
-		myfile << scenario.bestAgentQueues[a].size() << std::endl;
-		for (int k = 0; k < scenario.bestAgentQueues[a].size(); k++) {
-			myfile << scenario.bestAgentQueues[a][k].loc0.x << " " <<
-				scenario.bestAgentQueues[a][k].loc0.y << " " <<
-				scenario.bestAgentQueues[a][k].v << std::endl;
-		}
-		myfile << (scenario.bestPointQueues[a].size() + 1) << std::endl;
-		for (int p = 0; p < scenario.bestPointQueues[a].size(); p++) {
-			myfile << scenario.bestPointQueues[a][p].x << " " << scenario.bestPointQueues[a][p].y << std::endl;
-		}
-		myfile << scenario.bestTargets[a].loc.x << " " << scenario.bestTargets[a].loc.y << std::endl;
-	}*/
-
 	assert(CGAL::partition_is_valid_2(polygon.vertices_begin(),
 		polygon.vertices_end(),
 		partition_polys.begin(),
