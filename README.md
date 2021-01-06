@@ -37,7 +37,7 @@ To test out different examples, modify the following variable in two_sweeping.py
 ```
 polygon = [[x1, y1], [x2, y2], ...]
 ```
-In which the [xi, yi] are the coordinates of the vertices, written in counterclockwise order. 
+In which the [xi, yi] are **integer** coordinates of the vertices, written in counterclockwise order.
 Then, pick any edge of the polygon and assign them as the starting location of the agents.
 ```
 agents = [[x4, y4], [x5, y5]]
