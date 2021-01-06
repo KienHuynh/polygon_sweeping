@@ -17,11 +17,12 @@ Main file: two_sweeping.py
 
 Requirement:
 * CGAL 5.1: https://www.cgal.org/
+* cxxopts (included in the project)
 
 To run the python project:
-1) Compile the file ./poly_decomp_cgal/poly_decomp_cgal/main.cpp
+1) Compile the file ./poly_decomp_cgal/poly_decomp_cgal/main.cpp using CGAL
 2) Name it poly_decomp_cgal (or poly_decomp_cgal.exe for Windows)
-3) Change the path to this executable file in two_sweeping.py
+3) Change the string variable that stores the path to this executable file in two_sweeping.py
 ```
 poly_decomp_path = './poly_decomp_cgal/Debug/poly_decomp_cgal'
 ```
