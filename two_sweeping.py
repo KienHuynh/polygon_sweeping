@@ -1,22 +1,27 @@
-import subprocess
-import poly_decomp as pd
-
-from typing import List
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import matplotlib.lines as lines
 import numpy as np
 from dijkstra import Graph, DijkstraSPF
 import copy
+
+import subprocess
 import sys
 import time
 
+from typing import List
 from base import *
 
-poly_decomp_path = 'D:/study/phd_research/main/polygon_sweeping/poly_decomp_cgal/Debug/poly_decomp_cgal.exe'
+
+poly_decomp_path = './poly_decomp_cgal/Debug/poly_decomp_cgal'
 
 
-def create_vis_graph(vertices):
+def create_vis_graph(vertices: List[List[float]]) -> Graph:
+    """
+    Create a visibility graph based on the vertices of the polygon
+    :param vertices: List[List[float]]
+    :return: Graph object
+    """
+
     graph = Graph()
     for i in range(len(vertices)):
         for j in range(i + 1, len(vertices)):
@@ -44,12 +49,23 @@ def create_vis_graph(vertices):
 
 
 def l2_dist(p1, p2):
+    """
+    Compute l2 distance between p1 and p2
+    :param p1: List[float]
+    :param p2: List[float]
+    :return:
+    """
     p1 = np.asarray(p1).astype(float)
     p2 = np.asarray(p2).astype(float)
     return float(np.sqrt(np.sum((p1 - p2)**2)))
 
 
 class PolyNode:
+    """
+    This is the class for representing each convex component as a node
+    Any two components that share an edge are supposed to also share an edge in this graph
+    """
+
     def __init__(self, poly: List):
         self.verts = copy.deepcopy(poly)
         self.edge = []
@@ -87,7 +103,7 @@ def create_edge(poly_nodes: List[PolyNode]):
     """
     Check if two polygons share an edge.
     If they do, create an undirected edge (two directed edges)
-    :return:
+    :return: None
     """
     for i in range(len(poly_nodes)):
         for j in range(i, len(poly_nodes)):
@@ -99,7 +115,10 @@ def create_edge(poly_nodes: List[PolyNode]):
 
 
 def poly_decomp_cgal(verts: List[List[float]]) -> List[List[List[float]]]:
-    """ Decompose a polygon into convex components (optimally) using CGAL, coordinates are int
+    """
+    Decompose a polygon into convex components (optimally) using CGAL, coordinates are int
+    :param verts: List[List[float]], list of vertices of the polygon, must be in counterclockwise order
+    :return: List[List[List[float]]], list of convex subpolygons
     """
     polygons = []
     arg = poly_decomp_path + ' --verts='
@@ -166,7 +185,7 @@ def edge_in_poly(poly: PolyNode, edge: List[List[float]]):
 def append_correct(schedule: List[List[float]], new_edge: List[float]):
     """
     Append a new edge to the schedule correctly.
-    This solves the case in which two agents have to cross themselves to move on to the new edge (they don't have to)
+    This solves the case in which two agents have to cross themselves to move on to the new edge (they shouldn't)
     :param schedule: old schedule (i.e. list of edges)
     :param new_edge: new edge, a pair of 2 floats
     :return:
@@ -254,16 +273,19 @@ def find_cloest_neighbor(root, e, neighbors):
     return min_ind
 
 
-def dfs(polygons, root:PolyNode, polygon, vis_graph, pred_sib_edges, agents):
+def dfs(polygons: List[List[List[float]]], root: PolyNode,
+        polygon: List[List[float]], vis_graph: Graph, pred_sib_edges: List[List[float]],
+        agents: List[List[float]]) -> List[List[List[List[float]]]]:
     """
-    The main function for sweeping with two agents
-    :param polygons:
-    :param root:
-    :param polygon:
-    :param vis_graph:
-    :param pred_sib_edges:
-    :param agents:
-    :return:
+    The main function for sweeping with two agents.
+    :param polygons: List[List[List[float]]]
+    :param root: PolyNode, first subpolygon that the two agents start in
+    :param polygon: List[List[float]], original polygon
+    :param vis_graph: Graph, the visibility graph, used to find shortest path from a node to another
+    :param pred_sib_edges: storing all the next edges that the agents will move to after they are done with one sub-tree
+    :param agents: List[List[float]], starting locations of the two agents
+    :return: List[List[List[List[float]]]] (4 List), the strategy. The list of states of the two agents (line segments).
+    Each of the inner List[List[List[float]]] (3 List) is a completely valid strategy, consisting of multiple line segments.
     """
 
     root.visited = True
@@ -286,7 +308,8 @@ def dfs(polygons, root:PolyNode, polygon, vis_graph, pred_sib_edges, agents):
                 edges.append(edge)
 
     # Generate a sweep schedule for the current root node (a convex subpoly)
-    # Note that at the end of the schedule, the two agents will align with the edge shared with the first child found in the above loop
+    # Note that at the end of the schedule, the two agents will align with the edge shared with the best child found in find_closest_neighbor
+
     # Special case if leaf node
     if len(children) == 0:
         l = l2_dist(agents[0], agents[1])
@@ -302,31 +325,6 @@ def dfs(polygons, root:PolyNode, polygon, vis_graph, pred_sib_edges, agents):
         if (i1 + len(root.verts) - 1) % len(root.verts) == j1:
             i1, j1 = j1, i1
         schedule_r.append([root.verts[i1], root.verts[j1]])
-
-        # to_cover_len = (poly_len - l) / 2.0
-        # l0 = 0
-        # while l0 <= to_cover_len:
-        #     i2 = (i1 + len(root.verts) - 1) % len(root.verts)
-        #     j2 = (j1 + 1) % len(root.verts)
-        #     if (l0 + l2_dist(root.verts[j1], root.verts[j2])) > to_cover_len:
-        #
-        #         #schedule_r.append([root.verts[j1], root.verts[j2]])
-        #         append_correct(schedule_r, [root.verts[j1], root.verts[j2]])
-        #         break
-        #     else:
-        #         l0 = l0 + l2_dist(root.verts[j1], root.verts[j2])
-        #
-        #     if i2 == j2:
-        #         dj = l2_dist(root.verts[j1], root.verts[j2])
-        #         di = l2_dist(root.verts[i1], root.verts[i2])
-        #         if di < dj:
-        #             append_correct(schedule_r, [root.verts[i2], root.verts[j1]])
-        #         else:
-        #             append_correct(schedule_r, [root.verts[i1], root.verts[j2]])
-        #         break
-        #
-        #     i1 = i2
-        #     j1 = j2
 
         best_edge_ind = -1
         best_sweep_time = float('inf')
@@ -407,54 +405,10 @@ def dfs(polygons, root:PolyNode, polygon, vis_graph, pred_sib_edges, agents):
             schedule[-1] += [[polygon[p], polygon[p]]]
         return schedule
 
-        # dijkstra1 = DijkstraSPF(vis_graph, polygon.index(schedule_r[-1][0]))
-        # dijkstra2 = DijkstraSPF(vis_graph, polygon.index(schedule_r[-1][1]))
-        # #dijkstra = [dijkstra1, dijkstra1, dijkstra2, dijkstra2]
-        # #lengths = [dijkstra[0].get_distance(next_edge[0]),
-        # #           dijkstra[1].get_distance(next_edge[1]),
-        # #           dijkstra[2].get_distance(next_edge[0]),
-        # #           dijkstra[3].get_distance(next_edge[1])]
-        # #paths = [dijkstra[0].get_path(next_edge[0]),
-        # #           dijkstra[1].get_path(next_edge[1]),
-        # #           dijkstra[2].get_path(next_edge[0]),
-        # #           dijkstra[3].get_path(next_edge[1])]
-        # #dijkstra = [[dijkstra1, dijkstra1], [dijkstra2, dijkstra2]]
-        # lengths = [[dijkstra1.get_distance(next_edge[0]),
-        #            dijkstra1.get_distance(next_edge[1])],
-        #            [dijkstra2.get_distance(next_edge[0]),
-        #             dijkstra2.get_distance(next_edge[1])]
-        #            ]
-        # best_length = max(min(lengths[0]), min(lengths[1]))
-        # best_path = []
-        # if best_length == lengths[0][0]:
-        #     best_path = dijkstra1.get_path(next_edge[0])
-        # elif best_length == lengths[0][1]:
-        #     best_path = dijkstra1.get_path(next_edge[1])
-        # elif best_length == lengths[1][0]:
-        #     best_path = dijkstra2.get_path(next_edge[0])
-        # elif best_length == lengths[1][1]:
-        #     best_path = dijkstra2.get_path(next_edge[1])
-        #
-        # min_ind = np.argmin(lengths)
-        # if (len(best_path) != 0):
-        #     path = best_path
-        #     path = path[1:]
-        #     path = [polygon[p] for p in path]
-        #     schedule_s = [schedule_r[-1]] + [[path[0], path[0]]]
-        #     schedule_geo = [[p, p] for p in path]
-        #     schedule += [schedule_s, schedule_geo]
-        # else:
-        #     path = [polygon[next_edge[min_ind]], polygon[next_edge[min_ind]]]
-        #     schedule_s = [schedule_r[-1]] + [[path[0], path[0]]]
-        #     schedule += [schedule_s]
-        #
-        # return schedule
-
 
     # General case, moving the segment from edge/diag (i1, j1) to edge/diag (i2, j2)
     i1 = root.verts.index(agents[0])
     j1 = root.verts.index(agents[1])
-
 
     closest_neighbor = find_cloest_neighbor(root, agents, children)
 
@@ -480,53 +434,67 @@ def dfs(polygons, root:PolyNode, polygon, vis_graph, pred_sib_edges, agents):
     schedule = [schedule_r]
 
     last_edge = edges[closest_neighbor]
-    del edges[closest_neighbor]
-    if len(edges) > 0:
-        pred_sib_edges_ = edges
-    else:
-        pred_sib_edges_ = pred_sib_edges
 
     while len(children) > 0:
         # Find the next child with start_edge of closest moving distance from last_edge
-        #closest_neighbor = find_cloest_neighbor(root, last_edge, children)
-        #closest_neighbor = 0
         c = children[closest_neighbor]
-        #c = children[0]
-
-        schedule_c = dfs(polygons, c, polygon, vis_graph, pred_sib_edges_, last_edge)
-        del children[closest_neighbor]
-        closest_neighbor = 0
-        #del edges[closest_neighbor]
 
         if len(edges) > 1:
+            del_ind = -1
+            for i in range(len(edges)):
+                if edge_in_poly(c, edges[i]):
+                    del_ind = i
+                    break
+            del edges[del_ind]
             pred_sib_edges_ = edges
-            del edges[closest_neighbor-1]
         else:
             pred_sib_edges_ = pred_sib_edges
             edges = edges[1:]
+
+        schedule_c = dfs(polygons, c, polygon, vis_graph, pred_sib_edges_, last_edge)
+
+        del children[closest_neighbor]
+        closest_neighbor = 0
+
+        #del edges[closest_neighbor]
+
+
         last_edge = schedule_c[-1][-1]
         schedule += schedule_c
 
     return schedule
 
 
-def draw_polys(ps, ax):
+def draw_polys(ps, ax, linewidth=0.5, edgecolor='0.5'):
+    """
+    Draw polygons
+    :param ps: List[PolyNode]
+    :param ax: ax object created by matplotlib
+    :param linewidth: float, width of the lines used to draw the polygons
+    :param edgecolor: float (grayscale), or [float, float, float] (RGB), color for the polygon edges
+    :return: None
+    """
     for p in ps:
         p_np = np.asarray(p.verts)
-        poly = patches.Polygon(p_np, fill=False, edgecolor='0.5')
+        poly = patches.Polygon(p_np, fill=False, edgecolor=edgecolor, linewidth=linewidth)
         ax.add_patch(poly)
 
     for p in ps:
         p_np = np.asarray(p.verts)
         plt.scatter(p_np[::-1, 0], p_np[::-1, 1])
 
-    #ax.set_ylim(bottom=-1, top=6)
-    #plt.show()
     plt.draw()
 
 
-
 def get_curr_point(verts, t, speed):
+    """
+    verts store two points a and b, an agent will move from a to b at speed 'speed'.
+    This function computes the location of the agent at time t.
+    :param verts: List[List[float]]
+    :param t: float, time
+    :param speed: float, speed
+    :return: List[float], location of the agent
+    """
     total_time = 0
     for i in range(len(verts)-1):
         p1 = np.array(verts[i]).astype(float)
@@ -542,8 +510,17 @@ def get_curr_point(verts, t, speed):
     return verts[-1]
 
 
-def animate_schedule(polygons, chedule, speed):
+def animate_schedule(polygon, polygons, schedule, speed):
+    """
+    Animate the computed sweeping strategy
+    :param polygon: List[List[float]], the original polygon
+    :param polygons: List[PolyNode], list of convex subpolygons
+    :param schedule: List[List[List[List[float]]]], the strategy.
+    :param speed: float, animation speed
+    :return: None
+    """
     fig, ax = plt.subplots()
+    draw_polys([PolyNode(polygon)], ax, edgecolor=[0,0,0], linewidth=1)
     draw_polys(polygons, ax)
     plt.axis('equal')
     plt.waitforbuttonpress()
@@ -585,25 +562,61 @@ if __name__ == '__main__':
     # polygon = [[0, 0], [10, 0], [10, 10], [20, 20], [17, 28], [15, 30], [7, 15], [3, 15], [-5, 30], [-10, 20], [0, 10]]
     # agents = [[0, 0], [10, 0]]
 
-    polygon = [[0, 0], [37, 0], [37, 8], [36, 11], [36, 22], [33, 22], [28, 24], [27, 20], [31, 21],
-              [30, 19], [20, 19], [22, 24], [14, 16], [20, 14], [30, 14],
-              [32, 11], [0, 10]]
-    agents = [[0, 0], [0, 10]]
+    # polygon = [[0, 0], [37, 0], [37, 8], [36, 11], [36, 22], [33, 22], [28, 24], [27, 20], [31, 21],
+    #           [30, 19], [20, 19], [22, 24], [14, 16], [20, 14], [30, 14],
+    #           [32, 11], [0, 10]]
+    # agents = [[0, 0], [0, 10]]
 
     # polygon = [[0, 0], [40, 0], [40, 10], [38, 10], [38, 20]]
     # agents = [[0, 10], [0, 0]]
 
+    # speed = 40
     # polygon = [[40, 0], [0, 60], [10, 50], [22, 55], [20, 45], [30, 42], [27, 50],
     #            [40, 40], [53, 50], [50, 42], [60, 45], [58, 55], [70, 50], [80, 60]]
     # polygon = polygon[::-1]
     # agents = [[10, 50], [0, 60]]
 
-    # polygon = [[0,0], []]
-    # polygon = polygon[::-1]
-    # agents = [[10, 50], [0, 60]]
+    # Random 1
+    # speed = 10
+    # polygon = [[0, 0], [1, 3], [2, 1], [3, 5], [6, 8], [13, 4], [13, 0], [14, -1],[14, 3],
+    #            [20, 2], [17, 4], [21, 6], [14, 5], [7, 9], [9, 10], [8, 16],
+    #            [13, 15], [14, 17], [18, 17], [16, 18], [17, 19], [8, 18], [4, 18], [6, 15], [4, 15],
+    #            [5, 10], [-5, 7], [1, 8], [1, 5]]
+    # #polygon = polygon[::-1]
+    # agents = [[0, 0], [1, 3]]
 
-    #fig, ax = plt.subplots()
-    #draw_polys([PolyNode(polygon)], ax)
+    # Flower
+    # speed = 10
+    # polygon = [[0, 0], [4, 6], [8, 0], [6, 7], [13, 5], [7, 9],
+    #            [13, 13], [6, 11], [8, 18], [4, 12], [0, 18],
+    #            [2, 11], [-5, 13], [1, 9], [-5, 5], [2, 7]
+    #            ]
+    # agents = [[0,0], [4, 6]]
+
+    # pinwheel
+    # speed = 10
+    # polygon = [[3, -1], [0, 7], [10, 0], [2, 6], [13, 10], [4, 7],
+    #            [9, 15], [5, 9], [1, 19], [4, 11], [-6, 17],
+    #            [2, 12], [-8, 8], [0, 11], [-5, 3], [-1, 9]
+    #            ]
+    # agents = [[3, -1], [0, 7]]
+
+    # random 2
+    speed = 150
+    polygon = [
+        [480, 720], [352, 576], [304, 592], [272, 528], [288, 752], [32, 720],
+        [48, 688], [144, 624], [192, 704], [256, 704], [224, 528], [64, 496],
+        [80, 432], [336, 480], [336, 368], [448, 352], [368, 496], [416, 608],
+        [496, 576], [448, 272], [544, 272], [512, 496], [576, 464], [496, 624],
+        [560, 656], [560, 800], [272, 768], [368, 736], [528, 784], [464, 656]
+    ]
+    agents = [[480, 720], [352, 576]]
+
+    # polygon = [
+    #     [0,0], [10,0], [11,-1],[12,0], [22,0],
+    #     [22,10], [12,10], [11,11], [10, 10], [0, 10]
+    # ]
+    # agents = [[0, 0], [0, 10]]
 
     polygons = poly_decomp_cgal(polygon)
     vis_graph = create_vis_graph(polygon)
@@ -617,6 +630,6 @@ if __name__ == '__main__':
     create_edge(polygons)
     root = find_root_node(polygons, agents)
     schedule = dfs(polygons, root, polygon, vis_graph, [], agents)
-    animate_schedule(polygons, schedule, speed)
+    animate_schedule(polygon, polygons, schedule, speed)
     plt.pause(0)
     abc = 1
