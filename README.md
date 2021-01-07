@@ -20,22 +20,33 @@ Requirement:
 * cxxopts (included in the project)
 
 To run the python project:
-1) Compile the file ./poly_decomp_cgal/poly_decomp_cgal/main.cpp using CGAL
-2) Name it poly_decomp_cgal (or poly_decomp_cgal.exe for Windows)
-3) Change the string variable that stores the path to this executable file in two_sweeping.py
+1) Compile the files
 ```
-poly_decomp_path = './poly_decomp_cgal/Debug/poly_decomp_cgal'
+./cgal/util/poly_decomp_cgal/poly_decomp_cgal.cpp
+./cgal/util/poly_triangulation_cgal/poly_triangulation_cgal.cpp
 ```
-to wherever your actual executable is.
+using CGAL
+2) Name them poly_decomp_cgal and poly_triangulation_cgal (with .exe for Windows)
+3) Change the string variables that store the path to these executable files in two_sweeping.py
+```
+poly_decomp_path = './cgal_util/Debug/poly_decomp_cgal'
+poly_triangulation_path = './cgal_util/Debug/poly_triangulation_cgal'
+```
+to wherever your actual executables are.
 
 4) Run
 ```
 python two_sweeping.py
 ```
+to test polygons with holes or without holes. Right now, you need to directly modify the polygons/holes in the functions test_with_hole and test_without_hole to test out different examples. The relevant variables are:
 
-To test out different examples, modify the following variable in two_sweeping.py:
 ```
 polygon = [[x1, y1], [x2, y2], ...]
+holes = [
+ [[x1, y1], [x2, y2], ...],
+ [[x10, y10], [x11, y11], ...],
+ ...
+]
 ```
 In which the [xi, yi] are **integer** coordinates of the vertices, written in counterclockwise order.
 Then, pick any edge of the polygon and assign them as the starting location of the agents.
