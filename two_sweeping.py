@@ -12,10 +12,10 @@ from typing import List
 from base import *
 
 
-poly_decomp_path = './poly_decomp_cgal/Debug/poly_decomp_cgal'
+poly_decomp_path = './cgal_util/Debug/poly_decomp_cgal'
+poly_triangulation_path = './cgal_util/Debug/poly_triangulation_cgal'
 
-
-def create_vis_graph(vertices: List[List[float]]) -> Graph:
+def create_vis_graph(vertices: List[List[float]], holes: List[List[List[float]]]=None) -> Graph:
     """
     Create a visibility graph based on the vertices of the polygon
     :param vertices: List[List[float]]
@@ -45,6 +45,101 @@ def create_vis_graph(vertices: List[List[float]]) -> Graph:
                 d = l2_dist(vertices[i], vertices[j])
                 graph.add_edge(i, j, d)
                 graph.add_edge(j, i, d)
+    return graph
+
+
+def is_same_poly(polys, edge):
+    for poly in polys:
+        if (edge[0] in poly) and (edge[1] in poly):
+            return True
+
+    return False
+
+
+def is_actual_edge(polys, edge):
+    for poly in polys:
+        n = len(poly)
+        if (edge[0] in poly) and (edge[1] in poly):
+            i = poly.index(edge[0])
+            j = poly.index(edge[1])
+            if ((i + 1) % n) == j or ((j + 1) % n) == i:
+                return True
+
+    return False
+
+
+def create_vis_graph_with_holes(vertices: List[List[float]], holes: List[List[List[float]]]) -> Graph:
+    """
+    Create a visibility graph based on the vertices of the polygon
+    :param vertices: List[List[float]]
+    :return: Graph object
+    """
+
+    graph = Graph()
+    vertices = copy.deepcopy(vertices)
+    main_poly = copy.deepcopy(vertices)
+    all_polys = [main_poly] + holes
+
+
+    for h in holes:
+        vertices += h
+
+    for h in holes + [main_poly]:
+        for i in range(len(h)):
+            j = (i+1) % len(h)
+            d = l2_dist(h[i], h[j])
+            ii = vertices.index(h[i])
+            jj = vertices.index(h[j])
+            graph.add_edge(ii, jj, d)
+            graph.add_edge(jj, ii, d)
+
+    for i in range(len(vertices)):
+        for j in range(i + 1, len(vertices)):
+            vis = True
+            # Check to see if (i, j) intersects with (k1, k2) or not, along with other conditions for visibility
+            for poly in all_polys:
+
+                for k in range(len(poly)):
+                    k1 = k
+                    k2 = (k + 1) % (len(poly))
+
+                    edge = [poly[k1], poly[k2]]
+                    if not is_actual_edge(all_polys, edge):
+                        continue
+
+                    # Intersect with some edges
+                    if intersectProp(vertices[i], vertices[j], poly[k1], poly[k2]):
+                        vis = False
+                        break
+
+                if vis == False:
+                    break
+
+            edge_ij = [vertices[i], vertices[j]]
+
+            # Exclude the exterior diagonals of the main polygon
+            if vertices[i] in main_poly and vertices[j] in main_poly:
+                # Not inter diagonal
+                if not diagonal(i, j, main_poly):
+                    continue
+
+            # Exclude the interior diagonals of the holes
+            if vertices[i] not in main_poly and is_same_poly(all_polys, edge_ij):
+                # Not external diagonal
+                is_diag = False
+                for h in holes:
+                    if vertices[i] in h and vertices[j] in h:
+                        if diagonal(h.index(vertices[i]), h.index(vertices[j]), h):
+                            is_diag = True
+                            break
+                if is_diag:
+                    continue
+
+            if vis:
+                d = l2_dist(vertices[i], vertices[j])
+                graph.add_edge(i, j, d)
+                graph.add_edge(j, i, d)
+
     return graph
 
 
@@ -144,6 +239,44 @@ def poly_decomp_cgal(verts: List[List[float]]) -> List[List[List[float]]]:
         output = output[n_vert*2:]
         polygons += [polygon]
     return polygons
+
+
+def polygon_triangulation_cgal(polygon, holes=None):
+    """
+
+    :param polygon:
+    :param holes:
+    :return:
+    """
+    triangles = []
+    arg = poly_triangulation_path + ' --verts='
+    arg += str(len(polygon)) + ','
+    for v in polygon:
+        arg += str(v[0]) + ',' + str(v[1]) + ','
+
+    for h in holes:
+        arg += str(len(h)) + ','
+        for v in h:
+            arg += str(v[0]) + ',' + str(v[1]) + ','
+
+    arg = arg[:-1]
+    print('Running ' + arg)
+
+    popen = subprocess.Popen(arg, stdout=subprocess.PIPE)
+    popen.wait()
+    output = popen.stdout.read().decode("utf-8")
+    output = output.split(',')
+
+    for o in output:
+        triangle_s = o.split()
+        triangle = []
+        for i in range(int(len(triangle_s) / 2)):
+            triangle.append([int(triangle_s[i*2]), int(triangle_s[i*2 + 1])])
+        if len(triangle) == 0:
+            continue
+        triangles.append(triangle)
+
+    return triangles
 
 
 def find_root_node(poly_nodes: List[PolyNode], agents: List[List[float]]) -> PolyNode:
@@ -273,12 +406,12 @@ def find_cloest_neighbor(root, e, neighbors):
     return min_ind
 
 
-def dfs(polygons: List[List[List[float]]], root: PolyNode,
+def dfs(polygons: List[PolyNode], root: PolyNode,
         polygon: List[List[float]], vis_graph: Graph, pred_sib_edges: List[List[float]],
-        agents: List[List[float]]) -> List[List[List[List[float]]]]:
+        agents: List[List[float]], unvisited_children: List[PolyNode]) -> List[List[List[List[float]]]]:
     """
     The main function for sweeping with two agents.
-    :param polygons: List[List[List[float]]]
+    :param polygons: List[PolyNode], list of PolyNode in which each is a subpolygon after partitioning
     :param root: PolyNode, first subpolygon that the two agents start in
     :param polygon: List[List[float]], original polygon
     :param vis_graph: Graph, the visibility graph, used to find shortest path from a node to another
@@ -288,8 +421,15 @@ def dfs(polygons: List[List[List[float]]], root: PolyNode,
     Each of the inner List[List[List[float]]] (3 List) is a completely valid strategy, consisting of multiple line segments.
     """
 
+    if root.visited:
+        return []
+
+    if root in unvisited_children:
+        del unvisited_children[unvisited_children.index(root)]
+
     root.visited = True
-    schedule_r = []
+    # print(str(root.verts) + ' ' + str(polygons.index(root)))
+    schedule = []
 
     # Generate a list of children nodes, in counterclockwise order
     # edges is the list of edges, same length as children list
@@ -310,6 +450,62 @@ def dfs(polygons: List[List[List[float]]], root: PolyNode,
     # Generate a sweep schedule for the current root node (a convex subpoly)
     # Note that at the end of the schedule, the two agents will align with the edge shared with the best child found in find_closest_neighbor
 
+    # Find shortest path from the previous locations of the agents to the gate of this node
+    if (agents[0] not in root.verts) or (agents[1] not in root.verts):
+        best_d = float('inf')
+        best_convergent_point = -1
+        best_next_point = -1
+
+        leaf_poly = None
+        for poly in polygons:
+            if edge_in_poly(poly, [agents[0], agents[1]]):
+                leaf_poly = poly
+                break
+
+        for e in range(len(root.verts)):
+            next_edge = [polygon.index(root.verts[e]), polygon.index(root.verts[(e + 1) % len(root.verts)])]
+
+            min_d = float('inf')
+            convergent_point = -1
+            next_point = -1
+
+            for i in range(len(leaf_poly.verts)):
+                v = leaf_poly.verts[i]
+
+                dijkstra = DijkstraSPF(vis_graph, polygon.index(v))
+                path_lengths = [dijkstra.get_distance(next_edge[0]), dijkstra.get_distance(next_edge[1])]
+                total_length = min(path_lengths)
+                total_length += max(l2_dist(v, agents[0]), l2_dist(v, agents[1]))
+                if total_length < min_d:
+                    min_d = total_length
+                    convergent_point = polygon.index(v)
+
+                    if path_lengths[0] < path_lengths[1]:
+                        next_point = next_edge[0]
+                    else:
+                        next_point = next_edge[1]
+
+            if min_d < best_d:
+                best_convergent_point = convergent_point
+                best_d = min_d
+
+                best_next_point = next_point
+
+        schedule_r = [agents]
+        schedule_r += [[polygon[best_convergent_point], polygon[best_convergent_point]]]
+        schedule += [schedule_r]
+
+        dijkstra = DijkstraSPF(vis_graph, best_convergent_point)
+        path = dijkstra.get_path(best_next_point)
+        schedule_r = []
+        for p in path:
+            schedule_r += [[polygon[p], polygon[p]]]
+
+        schedule += [schedule_r]
+
+        agents = schedule_r[-1]
+
+    schedule_r = []
     # Special case if leaf node
     if len(children) == 0:
         l = l2_dist(agents[0], agents[1])
@@ -367,44 +563,93 @@ def dfs(polygons: List[List[List[float]]], root: PolyNode,
 
         #append_correct(schedule_r, [root.verts[j2], root.verts[i2]])
 
-        schedule = [schedule_r]
-        if len(pred_sib_edges) == 0:
+        schedule += [schedule_r]
+
+        if len(unvisited_children) == 0:
             return schedule
 
-        # Find its way to the next branch
-        # This is not a good way to do it
-        next_edge = pred_sib_edges[0]
-        next_edge = [polygon.index(e) for e in next_edge]
+        best_d_c = float('inf')
+        best_c = -1
+        for c in range(len(unvisited_children)):
+            child = unvisited_children[c]
+            best_d = float('inf')
+            for e in range(len(child.verts)):
+                next_edge = [polygon.index(child.verts[e]), polygon.index(child.verts[(e + 1) % len(child.verts)])]
 
-        min_d = float('inf')
-        convergent_point = -1
-        next_point = -1
-        for i in range(len(root.verts)):
-            v = root.verts[i]
+                min_d = float('inf')
 
-            dijkstra = DijkstraSPF(vis_graph, polygon.index(v))
-            path_lengths = [dijkstra.get_distance(next_edge[0]), dijkstra.get_distance(next_edge[1])]
-            total_length = min(path_lengths)
-            total_length += max(l2_dist(v, schedule_r[-1][0]), l2_dist(v, schedule_r[-1][1]))
-            if total_length < min_d:
-                min_d = total_length
-                convergent_point = polygon.index(v)
+                for i in range(len(root.verts)):
+                    v = root.verts[i]
 
-                if path_lengths[0] < path_lengths[1]:
-                    next_point = next_edge[0]
-                else:
-                    next_point = next_edge[1]
+                    dijkstra = DijkstraSPF(vis_graph, polygon.index(v))
+                    path_lengths = [dijkstra.get_distance(next_edge[0]), dijkstra.get_distance(next_edge[1])]
+                    total_length = min(path_lengths)
+                    total_length += max(l2_dist(v, agents[0]), l2_dist(v, agents[1]))
+                    if total_length < min_d:
+                        min_d = total_length
+                        convergent_point = polygon.index(v)
 
-        schedule_r = [schedule_r[-1]] + [[polygon[convergent_point], polygon[convergent_point]]]
-        schedule.append(schedule_r)
-        schedule += [[[polygon[convergent_point], polygon[convergent_point]]]]
+                        # if path_lengths[0] < path_lengths[1]:
+                        #     next_point = next_edge[0]
+                        # else:
+                        #     next_point = next_edge[1]
 
-        dijkstra = DijkstraSPF(vis_graph, convergent_point)
-        path = dijkstra.get_path(next_point)
-        for p in path:
-            schedule[-1] += [[polygon[p], polygon[p]]]
+                if min_d < best_d:
+                    # best_convergent_point = convergent_point
+                    best_d = min_d
+
+                    # best_next_point = next_point
+            if best_d < best_d_c:
+                best_d_c = best_d
+                best_c = c
+
+        schedule_r = dfs(polygons, unvisited_children[best_c], polygon, vis_graph, pred_sib_edges, schedule_r[-1], unvisited_children)
+        # del unvisited_children[best_c]
+        if len(schedule_r) > 1:
+            schedule += schedule_r
+
+        # if len(pred_sib_edges) == 0:
+        #     return schedule
+        #
+        # # Find its way to the next branch
+        #
+        # # best_sib_edge = -1
+        # # best_d = float('inf')
+        # # best_convergent_point = -1
+        # # best_next_point = -1
+        # # for e in range(len(pred_sib_edges)):
+        # e = 0
+        # next_edge = pred_sib_edges[e]
+        # next_edge = [polygon.index(e) for e in next_edge]
+        #
+        # min_d = float('inf')
+        # convergent_point = -1
+        # next_point = -1
+        # for i in range(len(root.verts)):
+        #     v = root.verts[i]
+        #
+        #     dijkstra = DijkstraSPF(vis_graph, polygon.index(v))
+        #     path_lengths = [dijkstra.get_distance(next_edge[0]), dijkstra.get_distance(next_edge[1])]
+        #     total_length = min(path_lengths)
+        #     total_length += max(l2_dist(v, schedule_r[-1][0]), l2_dist(v, schedule_r[-1][1]))
+        #     if total_length < min_d:
+        #         min_d = total_length
+        #         convergent_point = polygon.index(v)
+        #
+        #         if path_lengths[0] < path_lengths[1]:
+        #             next_point = next_edge[0]
+        #         else:
+        #             next_point = next_edge[1]
+        #
+        # schedule_r = [schedule_r[-1]] + [[polygon[convergent_point], polygon[convergent_point]]]
+        # schedule.append(schedule_r)
+        # schedule += [[[polygon[convergent_point], polygon[convergent_point]]]]
+
+        # dijkstra = DijkstraSPF(vis_graph, convergent_point)
+        # path = dijkstra.get_path(next_point)
+        # for p in path:
+        #    schedule[-1] += [[polygon[p], polygon[p]]]
         return schedule
-
 
     # General case, moving the segment from edge/diag (i1, j1) to edge/diag (i2, j2)
     i1 = root.verts.index(agents[0])
@@ -431,7 +676,7 @@ def dfs(polygons: List[List[List[float]]], root: PolyNode,
 
         schedule_r.append([root.verts[i1], root.verts[j1]])
 
-    schedule = [schedule_r]
+    schedule += [schedule_r]
 
     last_edge = edges[closest_neighbor]
 
@@ -451,21 +696,21 @@ def dfs(polygons: List[List[List[float]]], root: PolyNode,
             pred_sib_edges_ = pred_sib_edges
             edges = edges[1:]
 
-        schedule_c = dfs(polygons, c, polygon, vis_graph, pred_sib_edges_, last_edge)
-
         del children[closest_neighbor]
         closest_neighbor = 0
+        if not c.visited:
+            unvisited_children += children
+            schedule_c = dfs(polygons, c, polygon, vis_graph, pred_sib_edges_, last_edge, unvisited_children)
 
-        #del edges[closest_neighbor]
-
-
-        last_edge = schedule_c[-1][-1]
-        schedule += schedule_c
+            # del edges[closest_neighbor]
+            if len(schedule_c) > 0:
+                last_edge = schedule_c[-1][-1]
+                schedule += schedule_c
 
     return schedule
 
 
-def draw_polys(ps, ax, linewidth=0.5, edgecolor='0.5'):
+def draw_polys(ps, ax, linewidth=0.5, edgecolor='0.7'):
     """
     Draw polygons
     :param ps: List[PolyNode]
@@ -478,12 +723,26 @@ def draw_polys(ps, ax, linewidth=0.5, edgecolor='0.5'):
         p_np = np.asarray(p.verts)
         poly = patches.Polygon(p_np, fill=False, edgecolor=edgecolor, linewidth=linewidth)
         ax.add_patch(poly)
+        #for v in p.verts:
+        #   plt.text(v[0], v[1]+1, str(v[0]) + ',' + str(v[1]))
 
     for p in ps:
         p_np = np.asarray(p.verts)
         plt.scatter(p_np[::-1, 0], p_np[::-1, 1])
 
     plt.draw()
+
+
+def draw_vis_graph(vertices, g:Graph):
+    for node in list(g.get_nodes()):
+        for neighbor in list(g.get_adjacent_nodes(node)):
+            v1 = vertices[node]
+            v2 = vertices[neighbor]
+            plt.plot([v1[0], v2[0]], [v1[1], v2[1]], color='r', linewidth=0.5)
+            if node != 30:
+                plt.text(v1[0] + 0.5, v1[1], str(node))
+            if neighbor != 30:
+                plt.text(v2[0] + 0.5, v2[1], str(neighbor))
 
 
 def get_curr_point(verts, t, speed):
@@ -510,18 +769,18 @@ def get_curr_point(verts, t, speed):
     return verts[-1]
 
 
-def animate_schedule(polygon, polygons, schedule, speed):
+def animate_schedule(polygons, subpolygons, schedule, speed):
     """
     Animate the computed sweeping strategy
-    :param polygon: List[List[float]], the original polygon
+    :param polygon: List[List[float]], the original polygon and its holes
     :param polygons: List[PolyNode], list of convex subpolygons
     :param schedule: List[List[List[List[float]]]], the strategy.
     :param speed: float, animation speed
     :return: None
     """
     fig, ax = plt.subplots()
-    draw_polys([PolyNode(polygon)], ax, edgecolor=[0,0,0], linewidth=1)
-    draw_polys(polygons, ax)
+    draw_polys([PolyNode(p) for p in polygons], ax, edgecolor=[0,0,0], linewidth=1)
+    draw_polys(subpolygons, ax)
     plt.axis('equal')
     plt.waitforbuttonpress()
 
@@ -548,17 +807,17 @@ def animate_schedule(polygon, polygons, schedule, speed):
             plt.axis('equal')
             plt.pause(0.01)
 
-            if list(a) == s[-1][0] and list(b) == s[-1][1]:
-                break
-            else:
-                #plt.clf()
-                abc=1
+            try:
+                if list(a) == s[-1][0] and list(b) == s[-1][1]:
+                    break
+            except Exception as e:
+                abc = 1
 
 
-if __name__ == '__main__':
+def test_without_hole():
     plt.ion()
-    abc = 1
     speed = 15
+
     # polygon = [[0, 0], [10, 0], [10, 10], [20, 20], [17, 28], [15, 30], [7, 15], [3, 15], [-5, 30], [-10, 20], [0, 10]]
     # agents = [[0, 0], [10, 0]]
 
@@ -602,15 +861,15 @@ if __name__ == '__main__':
     # agents = [[3, -1], [0, 7]]
 
     # random 2
-    speed = 150
-    polygon = [
-        [480, 720], [352, 576], [304, 592], [272, 528], [288, 752], [32, 720],
-        [48, 688], [144, 624], [192, 704], [256, 704], [224, 528], [64, 496],
-        [80, 432], [336, 480], [336, 368], [448, 352], [368, 496], [416, 608],
-        [496, 576], [448, 272], [544, 272], [512, 496], [576, 464], [496, 624],
-        [560, 656], [560, 800], [272, 768], [368, 736], [528, 784], [464, 656]
-    ]
-    agents = [[480, 720], [352, 576]]
+    # speed = 150
+    # polygon = [
+    #     [480, 720], [352, 576], [304, 592], [272, 528], [288, 752], [32, 720],
+    #     [48, 688], [144, 624], [192, 704], [256, 704], [224, 528], [64, 496],
+    #     [80, 432], [336, 480], [336, 368], [448, 352], [368, 496], [416, 608],
+    #     [496, 576], [448, 272], [544, 272], [512, 496], [576, 464], [496, 624],
+    #     [560, 656], [560, 800], [272, 768], [368, 736], [528, 784], [464, 656]
+    # ]
+    # agents = [[480, 720], [352, 576]]
 
     # polygon = [
     #     [0,0], [10,0], [11,-1],[12,0], [22,0],
@@ -618,18 +877,118 @@ if __name__ == '__main__':
     # ]
     # agents = [[0, 0], [0, 10]]
 
-    polygons = poly_decomp_cgal(polygon)
-    vis_graph = create_vis_graph(polygon)
+    polygon = [[0, 0], [10, 0], [10, 10], [5, 11], [5, 5], [6, 5], [6, 4], [4, 4], [5, 5], [5, 11], [0, 10]]
+    agents = [[0, 0], [0, 10]]
 
+    # Random 1
+    # speed = 200
+    # polygon = [[240, 672], [128, 592], [208, 544], [80, 496],
+    #            [96, 400], [176, 336], [192, 512], [304, 448],
+    #            [304, 320], [432, 272], [592, 384], [464, 496],
+    #            [368, 384], [352, 592], [528, 608], [432, 784],
+    #            [112, 800], [96, 752], [384, 704], [256, 512]]
+    # agents = [[240, 672], [128, 592]]
+
+    polygons = poly_decomp_cgal(polygon)
+    # vis_graph = create_vis_graph(polygon)
+    vis_graph = create_vis_graph(polygon, [])
     dijkstra = DijkstraSPF(vis_graph, 1)
     path = dijkstra.get_path(4)
 
+
     polygons = [PolyNode(poly) for poly in polygons]
-    #draw_polys(polygons, ax)
+    # draw_polys(polygons, ax)
 
     create_edge(polygons)
     root = find_root_node(polygons, agents)
-    schedule = dfs(polygons, root, polygon, vis_graph, [], agents)
-    animate_schedule(polygon, polygons, schedule, speed)
+    schedule = dfs(polygons, root, polygon, vis_graph, [], agents, [])
+    animate_schedule([polygon], polygons, schedule, speed)
     plt.pause(0)
-    abc = 1
+
+
+def  test_with_hole():
+    plt.ion()
+
+    # speed = 7
+    # polygon = [[0,0], [10, 0], [10, 10], [0, 10]]
+    # agents = [[0, 0], [0, 10]]
+    # holes = [[[1, 1], [3, 1], [3, 3], [1, 3]],
+    #          [[4, 4], [6, 4], [6, 6], [5, 5], [4, 6]]]
+
+    # Random 1
+    speed = 100
+    polygon = [[240, 672], [128, 592], [208, 544], [80, 496],
+        [96, 400], [176, 336], [192, 512], [304, 448],
+        [304, 320], [432, 272], [592, 384], [464, 496],
+        [368, 384], [352, 592], [528, 608], [432, 784],
+        [112, 800], [96, 752], [384, 704], [256, 512]]
+    agents = [[240, 672], [128, 592]]
+    holes = [
+        [[112, 496], [96, 464], [160, 400], [176, 464],
+            [160, 480], [144, 432], [128, 448], [144, 480]],    # hole 1
+        [[288, 496], [336, 432], [320, 352], [416, 304],
+         [464, 416], [544, 368], [528, 416], [432, 432],
+         [400, 368], [352, 368], [336, 480]],                   # hole 2
+        [[368, 768], [416, 656], [368, 640], [496, 624],
+         [480, 672], [432, 640], [450, 704], [448, 672],
+         [464, 704], [416, 720], [432, 736], [390, 736]],       # hole 3
+        [[160, 784], [352, 768], [352, 720], [320, 752],
+         [208, 752]]                                            # hole 4
+            ]
+    holes[3] = holes[3][::-1]
+
+    # speed = 200
+    # polygon = [[64, 704], [64, 320], [512, 320], [512, 704]]
+    # agents = [[64, 704], [64, 320]]
+    # holes = [
+    #     [[126, 640], [126, 560], [193, 558], [194, 466],
+    #      [126, 464], [126, 384], [208, 384], [210, 446],
+    #      [366, 450], [368, 384], [450, 384], [450, 464],
+    #      [386, 466], [384, 558], [452, 562], [450, 640],
+    #      [368, 640], [366, 578], [210, 578], [208, 640]],       # hole 0
+    #     [[110, 544], [170, 544], [170, 480], [110, 480]],       # hole 1
+    #     [[222, 352], [222, 432], [354, 432], [354, 352],
+    #      [334, 352], [334, 416], [242, 416], [242, 352]],       # hole 2
+    #     [[258, 400], [322, 400], [322, 368], [258, 368]],       # hole 3
+    #     [[402, 544], [402, 480], [467, 480], [467, 544]],       # hole 4
+    #     [[240, 592], [240, 660], [352, 660], [352, 592],
+    #      [336, 592], [336, 640], [256, 640], [256, 592]],       # hole 5
+    #     [[272, 624], [272, 608], [320, 608], [320, 624]]        # hole 6
+    # ]
+    # holes[1] = holes[1][::-1]
+    # holes[2] = holes[2][::-1]
+    # holes[3] = holes[3][::-1]
+    # #holes[4] = holes[4][::-1]
+    # holes[5] = holes[5][::-1]
+
+
+    triangles = polygon_triangulation_cgal(polygon, holes)
+
+    a = 1
+
+    vis_graph = create_vis_graph_with_holes(polygon, holes)
+    vertices = copy.deepcopy(polygon)
+    for h in holes:
+        vertices += h
+    #draw_vis_graph(vertices, vis_graph)
+
+    #dijkstra = DijkstraSPF(vis_graph, 1)
+    #path = dijkstra.get_path(4)
+
+    triangles = [PolyNode(t) for t in triangles]
+
+    create_edge(triangles)
+    root = find_root_node(triangles, agents)
+
+    all_vert = copy.deepcopy(polygon)
+    for h in holes:
+        all_vert += h
+    schedule = dfs(triangles, root, all_vert, vis_graph, [], agents, [])
+    a = 1
+    animate_schedule([polygon] + holes, triangles, schedule, speed)
+    plt.pause(0)
+
+
+if __name__ == '__main__':
+    #test_without_hole()
+    test_with_hole()
