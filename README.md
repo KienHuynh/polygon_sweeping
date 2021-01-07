@@ -38,7 +38,11 @@ to wherever your actual executables are.
 ```
 python two_sweeping.py
 ```
-to test polygons with holes or without holes. Right now, you need to directly modify the polygons/holes in the functions test_with_hole and test_without_hole to test out different examples. The relevant variables are:
+with this line in the main function uncommented:
+```
+test_with_hole()
+```
+to test polygons with holes (or uncomment test_without_hole() in main for polygons without holes). Right now, you need to directly modify the polygons/holes in the functions test_with_hole and test_without_hole to test out different examples. The relevant variables are:
 
 ```
 polygon = [[x1, y1], [x2, y2], ...]
