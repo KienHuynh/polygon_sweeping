@@ -951,5 +951,5 @@ def test_with_hole():
 
 
 if __name__ == '__main__':
-    #test_without_hole()
+    test_without_hole()
     test_with_hole()
