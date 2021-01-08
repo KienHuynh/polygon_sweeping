@@ -12,7 +12,7 @@ import time
 from typing import List
 from base import *
 
-poly_decomp_path = '/home/kien/polygon_sweeping/cgal_util/poly_decomp_cgal/poly_decomp_cgal'
+poly_decomp_path = './cgal_util/poly_decomp_cgal/poly_decomp_cgal'
 poly_triangulation_path = './cgal_util/poly_decomp_cgal/poly_triangulation_cgal'
 
 
