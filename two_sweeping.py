@@ -6,13 +6,14 @@ import copy
 
 import subprocess
 import sys
+import os
 import time
 
 from typing import List
 from base import *
 
-poly_decomp_path = './cgal_util/Debug/poly_decomp_cgal'
-poly_triangulation_path = './cgal_util/Debug/poly_triangulation_cgal'
+poly_decomp_path = '/home/kien/polygon_sweeping/cgal_util/poly_decomp_cgal/poly_decomp_cgal'
+poly_triangulation_path = './cgal_util/poly_decomp_cgal/poly_triangulation_cgal'
 
 
 def create_vis_graph(vertices: List[List[float]], holes: List[List[List[float]]] = None) -> Graph:
@@ -223,7 +224,11 @@ def poly_decomp_cgal(verts: List[List[float]]) -> List[List[List[float]]]:
     arg = arg[:-1]
     print('Running ' + arg)
 
-    popen = subprocess.Popen(arg, stdout=subprocess.PIPE)
+    if os.name == 'posix':
+        popen = subprocess.Popen(arg, stdout=subprocess.PIPE, shell=True)
+    if os.name == 'nt':
+        popen = subprocess.Popen(arg, stdout=subprocess.PIPE, shell=True)
+
     popen.wait()
     output = popen.stdout.read().decode("utf-8")
     output = output.split()
