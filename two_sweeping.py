@@ -13,7 +13,7 @@ from typing import List
 from base import *
 
 poly_decomp_path = './cgal_util/poly_decomp_cgal/poly_decomp_cgal'
-poly_triangulation_path = './cgal_util/poly_decomp_cgal/poly_triangulation_cgal'
+poly_triangulation_path = './cgal_util/poly_triangulation_cgal/poly_triangulation_cgal'
 
 
 def create_vis_graph(vertices: List[List[float]], holes: List[List[List[float]]] = None) -> Graph:
