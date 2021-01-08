@@ -227,7 +227,7 @@ def poly_decomp_cgal(verts: List[List[float]]) -> List[List[List[float]]]:
     if os.name == 'posix':
         popen = subprocess.Popen(arg, stdout=subprocess.PIPE, shell=True)
     if os.name == 'nt':
-        popen = subprocess.Popen(arg, stdout=subprocess.PIPE, shell=True)
+        popen = subprocess.Popen(arg, stdout=subprocess.PIPE)
 
     popen.wait()
     output = popen.stdout.read().decode("utf-8")
@@ -270,7 +270,11 @@ def polygon_triangulation_cgal(polygon: List[List[float]], holes: List[List[List
     arg = arg[:-1]
     print('Running ' + arg)
 
-    popen = subprocess.Popen(arg, stdout=subprocess.PIPE)
+    if os.name == 'posix':
+        popen = subprocess.Popen(arg, stdout=subprocess.PIPE, shell=True)
+    if os.name == 'nt':
+        popen = subprocess.Popen(arg, stdout=subprocess.PIPE)
+
     popen.wait()
     output = popen.stdout.read().decode("utf-8")
     output = output.split(',')
