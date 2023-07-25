@@ -111,6 +111,44 @@ class PSLG:
                 plt.plot([src[0], to[0]], [src[1], to[1]], color=c)
 
 
+    def node_exist(self, pos):
+        for k, v in self.nodes:
+            if v[0] == pos[0] and v[1] == pos[1]:
+                return True
+
+        return False
+
+
+    def get_node(self, pos):
+        for k, v in self.nodes.items():
+            if v.pos[0] == pos[0] and v.pos[1] == pos[1]:
+                return v
+
+        return None
+
+
+    def add_intersection(self, pos, edge, ray_start):
+        # If this is an actual new node
+        old_node = self.get_node(pos)
+        if (old_node == None):
+            node = Node(len(self.nodes), pos)
+
+            # Remove previous edge and add 4 new edges
+            self.add_node(node)
+            self.remove_edge(edge)
+            self.add_edge(Edge(edge.src, node, 'poly'))
+            self.add_edge(Edge(node, edge.to, 'poly'))
+            self.add_edge(Edge(node, self.nodes[ray_start], 'vis'))
+            self.add_edge(Edge(self.nodes[ray_start], node, 'vis'))
+            return node
+
+        else:
+            self.add_edge(Edge(old_node, self.nodes[ray_start], 'vis'))
+            self.add_edge(Edge(self.nodes[ray_start], old_node, 'vis'))
+            return old_node
+
+
+
 
 def poly_vis_cgal_interior(verts: List[List[float]], query: [List[float]]) -> List[List[List[float]]]:
     """
@@ -182,7 +220,7 @@ def poly_vis_cgal_boundary(verts: List[List[float]], query: [List[float]], pre_q
 
 def above_below(p, n, a, use_normal=True):
     """
-    Return a positive value if p is below the line xn - an = 0, negative otherwise
+    Return a positive value if p is above the line xn - an = 0, negative otherwise
     If n is not a normal vector, it must be the tangent vector of the line
     :param p: numpy 2D vector, point for testing
     :param n: numpy 2D vector, normal vector
@@ -190,7 +228,7 @@ def above_below(p, n, a, use_normal=True):
     :return:
     """
     if use_normal:
-        return p@n - a@n
+        return (p - a)@n #p@n - a@n
     else:
         n_ = [n[1], 0-n[0]]
         return p@n_ - a@n_
@@ -231,14 +269,25 @@ def find_lowest_vert_intersection(p, d, pslg: PSLG):
     min_dist = 0
     edge = []
     for e in pslg.edge_set:
+        if (e.src.pos[0] == p[0] and e.src.pos[1] == p[1]) or  (e.to.pos[0] == p[0] and e.to.pos[1] == p[1]):
+            continue
         if e.type == "poly":
-            if (above_below(e.src.pos, nv, p, True) * above_below(e.to.pos, nv, p, True)) < 0:
+            #print(e.src.id, e.to.id)
+            #print(e.src.pos, e.to.pos)
+            if (above_below(e.src.pos, nv, p, True) * above_below(e.to.pos, nv, p, True)) <= 0:
                 nu = e.src.pos - e.to.pos
                 nu[0], nu[1] = 0-nu[1], nu[0]
                 u = e.src.pos
                 nuv = np.stack((nv, nu))
-                nuv = inv(nuv)
-                pos = nuv@(np.asarray([p@nv, u@nu]).T)
+                try:
+                    nuv = inv(nuv)
+                except np.linalg.LinAlgError as E:
+                    continue
+                else:
+                    pos = nuv @ (np.asarray([p @ nv, u @ nu]).T)
+
+                if above_below(pos, d, p) <= 0:
+                    continue
 
                 if len(lowest) == 0:
                     lowest = pos
@@ -247,10 +296,52 @@ def find_lowest_vert_intersection(p, d, pslg: PSLG):
                 else:
                     dist = get_norm(pos - p)
                     if dist < min_dist:
+                        min_dist = dist
                         lowest = pos
                         edge = e
 
     return lowest, edge
+
+
+def is_reflex(a, b, c):
+    """
+    Check if the interior angle (a, b, c) is bigger than 180
+    :param a: [x, y]
+    :param b: [x, y]
+    :param c: [x, y]
+    :return:
+    """
+    ab = b - a
+    ab[0], ab[1] = 0-ab[1], ab[0]
+    above = above_below(c, ab, a)
+    return above < 0
+
+
+def is_vert_interior(a, b, c, d):
+    """
+    Check if the upward ray from b (upward = nv) is interior
+    Only work if b is a reflex vertex :D
+    :param a: [x, y]
+    :param b: [x, y]
+    :param c: [x, y]
+    :param nv: [x, y]
+    :return:
+    """
+    nv = np.copy(d)
+    nv[0], nv[1] = 0 - nv[1], nv[0]
+    above_a = above_below(a, nv, b, True)
+    above_c = above_below(c, nv, b, True)
+    # if (above_c == 0):
+    #     return 0
+    # if (above_a == 0 and above_c < 0):
+    #     return 1
+    # else:
+    #     return -1
+
+    if above_a * above_c > 0:
+        return 1
+    else:
+        return -1
 
 
 def compute_histogram(polygon, e):
@@ -281,38 +372,60 @@ def compute_histogram(polygon, e):
     # Take special care of the first edge
     a1 = b0
     b1 = (b0 + 1) % n
+    ai = b0
+    bi = b1
 
     # Check if b1 is below or above a0b0
     above = above_below(polygon[b1], nv, a, True)
-    if above:
-        cos_value = get_cos(b - a, polygon[b1] - polygon[a1])
-        if cos_value >= 0:
-            pos, edge = find_lowest_vert_intersection(b, nv, pslg)
-            node = Node(len(pslg.nodes), pos)
+    if not (above > 0 and get_cos(b - a, polygon[b1] - polygon[a1]) <= 0):
+        # This means that the upward ray from b0 is interior to P and hits something
+        # Find that intersection between the ray and the boundary
+        pos, edge = find_lowest_vert_intersection(b, nv, pslg)
+        node = pslg.add_intersection(pos, edge, b0)
 
-            # Remove previous edge and add 4 new edges
-            pslg.add_node(node)
-            pslg.remove_edge(edge)
-            pslg.add_edge(Edge(edge.src, node, 'poly'))
-            pslg.add_edge(Edge(node, edge.to, 'poly'))
-            pslg.add_edge(Edge(node, pslg.nodes[b0], 'vis'))
-            pslg.add_edge(Edge(pslg.nodes[b0], node, 'vis'))
+        # Ignore everything from b1 to node.id
+        ai = node.id
+        bi = edge.to.id
 
-            fig, ax = plt.subplots()
-            pslg.draw_adj_list()
-            plt.axis('equal')
-            plt.show()
-            plt.waitforbuttonpress()
-            plt.close()
+    # Start going around P, compute the projected image of each reflex vertex onto the boundary of P with direction "up"
+    while bi != a0:
+        bj = (bi + 1) % n
+        if (is_reflex(pslg.nodes[ai].pos, pslg.nodes[bi].pos, pslg.nodes[bj].pos)):
+            interior_chord = is_vert_interior(pslg.nodes[ai].pos, pslg.nodes[bi].pos, pslg.nodes[bj].pos, nv)
+            if interior_chord == 1:
+                pos, edge = find_lowest_vert_intersection(pslg.nodes[bi].pos, nv, pslg)
+                node = pslg.add_intersection(pos, edge, bi)
 
-            # fig, ax = plt.subplots()
-            # draw_polygon(polygon)
-            # plt.plot([b[0], pos[0]], [b[1], pos[1]], 'b')
-            # plt.scatter([pos[0]], [pos[1]], color='r')
-            # plt.axis('equal')
-            # plt.show()
-            # plt.waitforbuttonpress()
-            # plt.close()
+                if (edge.to.id - a0) % n < (bi - a0) % n:
+                    ai = bi
+                    bi = bj
+                else:
+                    ai = node.id
+                    bi = edge.to.id
+                continue
+
+        ai = bi
+        bi = bj
+
+    # Take special care of the last edge
+    bj = b0
+    # Check if ai is below or above a0b0
+    above = above_below(pslg.nodes[ai].pos, nv, a, True)
+    if not (above >= 0 and get_cos(b - a, pslg.nodes[bi % n].pos - pslg.nodes[ai % n].pos) < 0):
+        # This means that the upward ray from b0 is interior to P and hits something
+        # Find that intersection between the ray and the boundary
+        pos, edge = find_lowest_vert_intersection(a, nv, pslg)
+        node = pslg.add_intersection(pos, edge, a0)
+
+    fig, ax = plt.subplots()
+    pslg.draw_adj_list()
+    plt.plot([a[0], b[0]], [a[1], b[1]], 'r')
+    plt.axis('equal')
+    plt.show()
+    plt.close()
+
+    # Retrieve the parent histogram polygon, as well as the children subpolygons
+
 
 
     #return main_hist
@@ -343,6 +456,7 @@ def test_hist():
     polygon1 = [[208, 560], [200, 552], [192, 560], [200, 564], [192, 572],
         [212, 572], [200, 584], [220, 580], [228, 584], [236, 576],
         [220, 568], [236, 556], [224, 560]]
+    polygon1 = polygon1[::-1]
     edge1 = [[208, 560], [200, 552]]
 
     polygon2 = [[208, 560], [204, 564], [192, 560], [200, 564], [192, 572],
@@ -353,10 +467,23 @@ def test_hist():
     polygon3 = [[208, 624],[224, 624],[236, 612],[232, 620],
             [252, 616],[248, 648],[216, 632],[232, 648],
             [212, 648],[224, 660],[188, 648],[212.249, 635.472],
-            [192, 628],[199.586, 615.738],[208, 624]]
+            [192, 628],[199.586, 615.738]]
     edge3 = [[208, 624], [224, 624]]
 
-    compute_histogram(polygon3, edge3)
+    polygon4 = [[208, 624], [224, 624], [221.467, 629.45], [232, 620],
+                [252, 616], [248, 648], [216, 632], [232, 648],
+                [212, 648], [224, 660], [188, 648], [212.249, 635.472],
+                [194.025, 628.747], [209.447, 628.807], [199.586, 615.738]]
+    edge4 = [[199.586, 615.738], [208, 624]]
+
+    polygon5 = [[240, 600], [240, 592], [248, 592], [248, 600], [252, 600],
+        [252, 592], [256, 592], [256, 612], [252, 612], [252, 608],
+        [248, 608], [248, 604], [244, 604], [244, 608], [236, 608], [236, 600]]
+
+    polygon = polygon4
+    for i in range(0, len(polygon)):
+        edge_i = [polygon[i], polygon[(i + 1) % len(polygon)]]
+        compute_histogram(polygon, edge_i)
 
 
 if __name__ == '__main__':
