@@ -92,3 +92,5 @@ def in_cone(a, b, verts):
 
 def diagonal(a, b, verts):
     return in_cone(a, b, verts) and in_cone(b, a, verts) and diagonalie(a, b, verts)
+
+
