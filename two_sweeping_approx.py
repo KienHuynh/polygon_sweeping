@@ -331,12 +331,20 @@ def is_vert_interior(a, b, c, d):
     nv[0], nv[1] = 0 - nv[1], nv[0]
     above_a = above_below(a, nv, b, True)
     above_c = above_below(c, nv, b, True)
-    # if (above_c == 0):
-    #     return 0
-    # if (above_a == 0 and above_c < 0):
-    #     return 1
-    # else:
-    #     return -1
+
+    if above_c == 0:
+        if above_a > 0:
+            return 1
+        else:
+            return -1
+
+    if above_a == 0:
+        # Upward ray align with ab
+        if above_c < 0:
+            return 1
+        else:
+            return -1
+
 
     if above_a * above_c > 0:
         return 1
@@ -407,11 +415,13 @@ def compute_histogram(polygon, e):
         ai = bi
         bi = bj
 
+
+
     # Take special care of the last edge
     bj = b0
     # Check if ai is below or above a0b0
     above = above_below(pslg.nodes[ai].pos, nv, a, True)
-    if not (above >= 0 and get_cos(b - a, pslg.nodes[bi % n].pos - pslg.nodes[ai % n].pos) < 0):
+    if not (above >= 0 and get_cos(b - a, pslg.nodes[bi % n].pos - pslg.nodes[ai % n].pos) <= 0):
         # This means that the upward ray from b0 is interior to P and hits something
         # Find that intersection between the ray and the boundary
         pos, edge = find_lowest_vert_intersection(a, nv, pslg)
@@ -480,7 +490,7 @@ def test_hist():
         [252, 592], [256, 592], [256, 612], [252, 612], [252, 608],
         [248, 608], [248, 604], [244, 604], [244, 608], [236, 608], [236, 600]]
 
-    polygon = polygon4
+    polygon = polygon1
     for i in range(0, len(polygon)):
         edge_i = [polygon[i], polygon[(i + 1) % len(polygon)]]
         compute_histogram(polygon, edge_i)
