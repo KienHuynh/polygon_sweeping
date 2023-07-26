@@ -11,10 +11,7 @@ import time
 
 from typing import List
 from base import *
-
-poly_decomp_path = './cgal_util/poly_decomp_cgal/poly_decomp_cgal'
-poly_triangulation_path = './cgal_util/poly_triangulation_cgal/poly_triangulation_cgal'
-
+from config import *
 
 def create_vis_graph(vertices: List[List[float]], holes: List[List[List[float]]] = None) -> Graph:
     """
@@ -777,6 +774,65 @@ def animate_schedule(polygons, subpolygons, schedule, speed):
                 abc = 1
 
 
+def animate_schedule_gif(polygons, subpolygons, schedule, speed, boundary_polygon):
+    """
+    Animate the computed sweeping strategy
+    :param polygon: List[List[float]], the original polygon and its holes
+    :param polygons: List[PolyNode], list of convex subpolygons
+    :param schedule: List[List[List[List[float]]]], the strategy.
+    :param speed: float, animation speed
+    :return: None
+    """
+    fig, ax = plt.subplots()
+    plt.plot(boundary_polygon[:, 0], boundary_polygon[:, 1], 'k')
+    rectangle = np.min(boundary_polygon, 0)
+    r_width, r_height = np.max(boundary_polygon, 0) - np.min(boundary_polygon, 0)
+    patch = patches.Rectangle(rectangle, r_width, r_height, facecolor = [1,1,1])
+    ax.add_patch(patch)
+    #draw_polys([PolyNode(p) for p in polygons], ax, edgecolor=[0, 0, 0], linewidth=1)
+    #draw_polys(subpolygons, ax)
+    plt.axis('equal')
+    plt.waitforbuttonpress()
+
+    dt = 0.001
+    ela_time = 0
+    a = schedule[0][0][0]
+    b = schedule[0][0][1]
+    line = ax.plot([a[0], b[0]], [a[1], b[1]], color='b')[0]
+    scatter = ax.scatter([a[0], b[0]], [a[1], b[1]], edgecolors='b', zorder=100)
+
+    segment_path = np.asarray([[[a[0], b[0]], [a[1], b[1]]]])
+    #print(segment_path.shape)
+    segment_path = np.concatenate((segment_path, segment_path), 0)
+    for s in schedule:
+        t0 = time.time()
+        path_a = [x[0] for x in s]
+        path_b = [x[1] for x in s]
+        while True:
+            t1 = time.time()
+            ela_time = t1 - t0
+            a = get_curr_point(path_a, ela_time, speed)
+            b = get_curr_point(path_b, ela_time, speed)
+            segment_path[1, :, :] = np.asarray([[a[0], b[0]], [a[1], b[1]]])
+
+            x = [segment_path[0, 0, 0], segment_path[0, 0, 1], segment_path[1, 0, 1], segment_path[1, 0, 0]]
+            y = [segment_path[0, 1, 0], segment_path[0, 1, 1], segment_path[1, 1, 1], segment_path[1, 1, 0]]
+            plt.fill(x, y, facecolor = [1, 0.8, 0.5], alpha=1)
+            line.set_data([a[0], b[0]], [a[1], b[1]])
+            scatter.set_offsets([[a[0], a[1]], [b[0], b[1]]])
+            plt.show()
+            plt.axis('equal')
+            plt.pause(0.001)
+
+            segment_path[0, :, :] = segment_path[1, :, :]
+
+            try:
+                if list(a) == s[-1][0] and list(b) == s[-1][1]:
+                    break
+            except Exception as e:
+                abc = 1
+
+
 def test_without_hole():
     plt.ion()
     speed = 15
@@ -863,6 +919,7 @@ def test_without_hole():
     root = find_root_node(polygons, agents)
     # Main algorithm
     schedule = dfs(polygons, root, polygon, vis_graph, agents, [])
+
     animate_schedule([polygon], polygons, schedule, speed)
     plt.waitforbuttonpress()
     plt.close()
@@ -948,8 +1005,62 @@ def test_with_hole():
     schedule = dfs(triangles, root, all_vert, vis_graph, agents, [])
     animate_schedule([polygon] + holes, triangles, schedule, speed)
     plt.waitforbuttonpress()
+    plt.close()
+
+
+def create_gif():
+    plt.ion()
+
+    # Problem definition gif
+    # speed = 100
+    # polygon = [[128, 608], [128, 612], [160, 640], [224, 608], [272, 656],
+    #            [336, 624], [304, 556], [380, 568], [336, 500], [256, 516],
+    #            [260, 588], [224, 576], [160, 608]]
+    # polygon = polygon[::-1]
+    # boundary_polygon = [[108, 664], [128, 556], [204, 560], [240, 500], [368, 484],
+    #                     [436, 560], [404, 604], [340, 596], [352, 656], [224, 676],
+    #                     [188, 652], [108, 664]]
+    # boundary_polygon = np.array(boundary_polygon)
+    # agents = [[128, 608], [128, 612]]
+
+    # CG gif
+    speed = 70
+    polygon = [[160, 624],[176, 624],[176, 640],[160, 656],[128, 656],
+               [112, 640],[112, 576],[128, 560],[160, 560],[176, 576],
+               [176, 584],[192, 584],[192, 576],[208, 560],[240, 560],
+               [256, 576],[256, 592],[264, 592],[264, 600],[232, 600],
+               [232, 592],[240, 592],[240, 576],[208, 576],[208, 640],
+               [240, 640],[240, 624],[256, 624],[256, 640],[240, 656],
+               [208, 656],[192, 640],[192, 588],[176, 588],[176, 592],
+               [160, 592],[160, 576], [128, 576],[128, 640], [160, 640]]
+    #polygon = polygon[::-1]
+    boundary_polygon = [[288, 576], [288, 640], [256, 672], [128, 672], [96, 640], [96, 576], [128, 544], [256, 544], [288, 576]]
+    boundary_polygon = np.array(polygon)
+    boundary_polygon = np.concatenate((boundary_polygon, np.asarray([[160, 624]])), 0)
+
+    agents = [[160, 624], [160, 640]]
+
+    # Parition the polygon into convex pieces
+    polygons = poly_decomp_cgal(polygon)
+
+    # Create visibility graph between vertices
+    vis_graph = create_vis_graph(polygon, [])
+
+    polygons = [PolyNode(poly) for poly in polygons]
+
+    # Create a graph in which each subpolygon is a node, two nodes share an edge if two corresponding subpolygons share
+    # an edge in the partition
+    create_edge(polygons)
+    # Find the first subpolygon that the agents reside in
+    root = find_root_node(polygons, agents)
+    # Main algorithm
+    schedule = dfs(polygons, root, polygon, vis_graph, agents, [])
+    animate_schedule_gif([polygon], polygons, schedule, speed, boundary_polygon)
+    plt.waitforbuttonpress()
+    plt.close()
 
 
 if __name__ == '__main__':
-    test_without_hole()
-    test_with_hole()
+    create_gif()
+    #test_without_hole()
+    #test_with_hole()
