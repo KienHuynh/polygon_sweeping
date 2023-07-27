@@ -29,10 +29,10 @@ int main(int argc, char **argv)
 {
 	cxxopts::Options options(argv[0], " - example command line options");
 	options.add_options()
-		("verts", "A list of ints", cxxopts::value<std::vector<int>>())
+		("verts", "A list of ints", cxxopts::value<std::vector<double>>())
 		;
 	auto cmd = options.parse(argc, argv);
-	std::vector<int> verts = cmd["verts"].as<std::vector<int>>();
+	std::vector<double> verts = cmd["verts"].as<std::vector<double>>();
 
 	std::vector<K::Point_2> points;
 	for (int i = 0; i < verts.size(); i=i+2) {
