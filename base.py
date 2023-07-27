@@ -170,6 +170,21 @@ def poly_vis_cgal_boundary(verts: List[List[float]], query: [List[float]], pre_q
     return vis_poly
 
 
+def vis_decompose(polygon: List[List[float]], query: [List[float]], pre_query: [List[float]]) -> List[List[List[float]]]:
+    """
+    Compute the visibility region (VP) from the query point in the polygon, then decompose the original polygon
+    into smaller subpolygons based on the visibility region: subtract VP from the polygon and we will get some smaller
+    subpolygons remaining, the VP will be the parent polygon and the remaining subpolygons will be its children.
+    The children are ordered counterclockwise around VP.
+    :param verts: Vertices of the polygon [[x1, y1], [x2, y2], ...], counter-clockwise.
+    :param query: Query point [x, y]
+    :param pre_query: Point on the boundary of the polygon preceding the query point
+    :return:
+    """
+
+
+
+
 def above_below(p, n, a, use_normal=True):
     """
     Return a positive value if p is above the line xn - an = 0, negative otherwise
@@ -253,3 +268,15 @@ def is_vert_interior(a, b, c, d):
         return 1
     else:
         return -1
+
+
+def l2_dist(p1, p2):
+    """
+    Compute l2 distance between p1 and p2
+    :param p1: List[float]
+    :param p2: List[float]
+    :return:
+    """
+    p1 = np.asarray(p1).astype(float)
+    p2 = np.asarray(p2).astype(float)
+    return float(np.sqrt(np.sum((p1 - p2) ** 2)))
