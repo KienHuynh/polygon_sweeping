@@ -41,7 +41,7 @@ class SubPolygon:
         self.left_edge = left_edge
 
 
-    def computer_hist_schedule(self):
+    def compute_hist_schedule(self):
         origin = self.base_edge[0]
         unit_v = np.asarray([1, 0])
         base_edge = self.base_edge - origin
@@ -62,7 +62,42 @@ class SubPolygon:
         projections[:, 1] = 0
         projections = (r_mat@projections.T).T + origin
 
-        return polygon, projections
+        # Create the actual schedule
+        #polygon = polygon[::-1, :]
+        #projections = projections[::-1, :]
+        schedule = [
+                    [
+                        self.right_edge,
+                        [list(projections[0, :]), list((polygon[0, :]))]
+                    ]
+                ]
+
+        n = len(polygon)
+        for i in range(n-1):
+            s = [
+                [list(projections[i, :]), list(polygon[i, :])],
+                [list(projections[(i + 1), :]), list(polygon[(i + 1), :])]
+                ]
+            schedule.append(s)
+
+        s = [
+            [list(projections[n-1, :]), list(polygon[n-1, :])],
+            list(self.left_edge)
+        ]
+        schedule.append(s)
+        return schedule
+
+
+    def compute_vis_schedule(self):
+        schedule = []
+        origin = list(self.polygon[0, :])
+        for i in range(1, len(self.polygon)-1):
+            s = [
+                [origin, list(self.polygon[i, :])],
+                [origin, list(self.polygon[(i + 1), :])]
+                ]
+            schedule.append(s)
+        return schedule
 
 
     def compute_schedule(self):
@@ -73,7 +108,21 @@ class SubPolygon:
         assume the starting configuration is the right edge, (radially) sweep until the segment becomes the left edge
         :return:
         """
-        return []
+        schedule = []
+        if self.type == 'hist':
+            schedule = self.compute_hist_schedule()
+        if self.type == 'vis':
+            schedule = self.compute_vis_schedule()
+
+        t = 0
+        for s in schedule:
+            for i in range(len(s) - 1):
+                e0 = s[i]
+                e1 = s[i + 1]
+                da = l2_dist(e0[0], e1[0])
+                db = l2_dist(e0[1], e1[1])
+                t += max(da, db)
+        return schedule, t
 
 
 class HistogramNode:
