@@ -204,3 +204,52 @@ def get_cos(u, v):
     """
     product = u[0]*v[0] + u[1]*v[1]
     return product / (get_norm(u) * get_norm(v))
+
+
+def is_reflex(a, b, c):
+    """
+    Check if the interior angle (a, b, c) is bigger than 180
+    :param a: [x, y]
+    :param b: [x, y]
+    :param c: [x, y]
+    :return:
+    """
+    ab = b - a
+    ab[0], ab[1] = 0-ab[1], ab[0]
+    above = above_below(c, ab, a)
+    return above < 0
+
+
+def is_vert_interior(a, b, c, d):
+    """
+    Check if the upward ray from b (upward = nv) is interior
+    Only work if b is a reflex vertex :D
+    :param a: [x, y]
+    :param b: [x, y]
+    :param c: [x, y]
+    :param nv: [x, y]
+    :return:
+    """
+    nv = np.copy(d)
+    nv[0], nv[1] = 0 - nv[1], nv[0]
+    above_a = above_below(a, nv, b, True)
+    above_c = above_below(c, nv, b, True)
+
+    if above_c == 0:
+        if above_a > 0:
+            return 1
+        else:
+            return -1
+
+    if above_a == 0:
+        # Upward ray align with ab
+        if above_c < 0:
+            return 1
+        else:
+            return -1
+
+
+    if above_a * above_c > 0:
+        return 1
+    else:
+        return -1
