@@ -14,18 +14,9 @@ from typing import List
 from base import *
 from pslg import *
 from config import *
+from graph import *
+from animate import *
 
-
-def draw_polygon(polygon, color='k'):
-    n = len(polygon)
-    plt.plot(polygon[:, 0], polygon[:, 1], color)
-    plt.plot(polygon[[n-1, 0], 0], polygon[[n-1, 0], 1], color)
-
-
-def draw_filled_polygon(polygon, color=[1, 0.9, 0.6]):
-    n = len(polygon)
-    polygon = np.vstack((polygon, polygon[-1, :].reshape(1,2)))
-    plt.fill(polygon[:, 0], polygon[:, 1], color = color)
 
 
 def find_degen_intersection(p, n, e):
@@ -211,73 +202,4 @@ def compute_histogram(polygon, e):
     ai = a0
     bi = b0
 
-
-
     #return main_hist
-
-
-def test_vis():
-    #polygon = [[0, 0], [1, 1], [2, 0], [2, 4], [1, 2], [0, 4]]
-    #query = [0.1, 0.3]
-    #vis_polygon = poly_vis_cgal_interior(polygon, query)
-    polygon = [[0, 0], [1, 1], [2, 0], [2, 4], [1, 2], [0, 4]]
-    query = [1, 1]
-    pre_query = [0, 0]
-    vis_polygon = poly_vis_cgal_boundary(polygon, query, pre_query)
-
-
-    vis_polygon = np.asarray(vis_polygon + [vis_polygon[0]])
-    polygon = np.asarray(polygon + [polygon[0]])
-
-    fig, ax = plt.subplots()
-    plt.plot(polygon[:, 0], polygon[:, 1], 'k')
-    plt.plot(vis_polygon[:, 0], vis_polygon[:, 1], 'b')
-    plt.axis('equal')
-    plt.show()
-    plt.waitforbuttonpress()
-    plt.close()
-
-
-def test_hist():
-    polygon1 = [[208, 560], [200, 552], [192, 560], [200, 564], [192, 572],
-        [212, 572], [200, 584], [220, 580], [228, 584], [236, 576],
-        [220, 568], [236, 556], [224, 560]]
-    polygon1 = polygon1[::-1]
-    edge1 = [[208, 560], [200, 552]]
-
-    polygon2 = [[208, 560], [204, 564], [192, 560], [200, 564], [192, 572],
-                [212, 572], [200, 584], [220, 580], [228, 584], [236, 576],
-                [220, 568], [236, 556], [224, 560]]
-    edge2 = [[208, 560], [204, 564]]
-
-    polygon3 = [[208, 624],[224, 624],[236, 612],[232, 620],
-            [252, 616],[248, 648],[216, 632],[232, 648],
-            [212, 648],[224, 660],[188, 648],[212.249, 635.472],
-            [192, 628],[199.586, 615.738]]
-    edge3 = [[208, 624], [224, 624]]
-
-    polygon4 = [[208, 624], [224, 624], [221.467, 629.45], [232, 620],
-                [252, 616], [248, 648], [216, 632], [232, 648],
-                [212, 648], [224, 660], [188, 648], [212.249, 635.472],
-                [194.025, 628.747], [209.447, 628.807], [199.586, 615.738]]
-    edge4 = [[199.586, 615.738], [208, 624]]
-
-    polygon5 = [[240, 600], [240, 592], [248, 592], [248, 600], [252, 600],
-        [252, 592], [256, 592], [256, 612], [252, 612], [252, 608],
-        [248, 608], [248, 604], [244, 604], [244, 608], [236, 608], [236, 600]]
-
-    polygon6 = [[208, 560], [200, 552], [192, 560], [200, 564], [192, 572],
-        [212, 572], [200, 584], [220, 580], [228, 584], [236, 576],
-        [220, 568], [236, 556], [224, 560]]
-    polygon6 = polygon6[::-1]
-    polygon6 = polygon6[9:] + polygon6[0:9]
-
-    polygon = polygon6
-    for i in range(0, len(polygon)):
-        edge_i = [polygon[i], polygon[(i + 1) % len(polygon)]]
-        compute_histogram(polygon, edge_i)
-
-
-if __name__ == '__main__':
-    #test_vis()
-    test_hist()
