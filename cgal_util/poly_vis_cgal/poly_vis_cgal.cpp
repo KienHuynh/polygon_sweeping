@@ -103,9 +103,7 @@ void boundary_vis(std::vector<Segment_2> segments, std::vector<double> q_, std::
 	Arrangement_2::Ccb_halfedge_circulator curr = fh->outer_ccb();
 	std::vector<Point_2> output;
 	output.push_back(curr->target()->point());
-	//std::cout << "[" << curr->source()->point() << " -> " << curr->target()->point() << "]" << std::endl;
 	while (++curr != fh->outer_ccb()) {
-		//std::cout << "[" << curr->source()->point() << " -> " << curr->target()->point() << "]" << std::endl;
 		output.push_back(curr->target()->point());
 	}
 
