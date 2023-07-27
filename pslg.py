@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 
 class Node:
     def __init__(self, _id, _pos):
@@ -41,6 +42,7 @@ class PSLG:
             edge = Edge(self.nodes[i], self.nodes[(i + 1) % n], "poly")
             self.edges[i] = [edge]
             self.edge_set.append(edge)
+
 
     def add_node(self, Node):
         num_node = len(self.nodes)
@@ -124,3 +126,26 @@ class PSLG:
             self.add_edge(Edge(old_node, self.nodes[ray_start], 'vis'))
             self.add_edge(Edge(self.nodes[ray_start], old_node, 'vis'))
             return old_node
+
+
+    def get_left_subpolygon(self, a, b):
+        """
+        Get the subpolygon to the left of chord ab
+        Note that the PSLG is made of either edges of the original polygon, or visibility chords
+        This function will return the polygonal chain of the original polygon to the left of ab
+        :param a: node id
+        :param b: node id
+        :return: List[List[float]] - [[x1, y1], [x2, y2], ...] format of the subpolygon
+        """
+        subpolygon = [self.nodes[a].pos, self.nodes[b].pos]
+        next_e = [e for e in self.edges[b] if e.type == 'poly']
+        next_e = next_e[0]
+        while True:
+            next_node = self.nodes[next_e.to.id]
+            if next_e.to.id == a:
+                break
+            subpolygon.append(next_node.pos)
+            next_e = [e for e in self.edges[next_node.id] if e.type == 'poly']
+            next_e = next_e[0]
+
+        return np.asarray(subpolygon)
