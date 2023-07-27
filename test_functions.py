@@ -83,35 +83,75 @@ def test_hist():
 def test_hist_sweep():
     polygon1 = [[192, 664], [260, 664], [260, 696], [248, 688], [248, 700], [240, 688],
         [228, 692], [228, 700], [224, 704], [224, 716], [216, 720], [208, 712],
-        [208, 680], [200, 680], [200, 688], [196, 692], [192, 684], [192, 664]]
+        [208, 680], [200, 680], [200, 688], [196, 692], [192, 684]]
+
     polygon1 = np.asarray(polygon1, dtype=np.float64)
     n1 = len(polygon1)
-    mat = np.asarray([[-0.709516, 0.704689], [-0.704689, -0.709516]]).T
-    mat = np.asarray([[-0.709516, 0.704689], [-0.704689, -0.709516]]).T
+    mat = np.asarray([[-0.935458, -0.353438], [0.353438, -0.935458]]).T
     polygon1 = (mat@polygon1.T).T
     base_edge1 = polygon1[[0, 1], :]
     left_edge1 = polygon1[[0, n1-1], :]
     right_edge1= polygon1[[1, 2], :]
-
+    speed1 = 40
 
     polygon = polygon1
     base_edge = base_edge1
     left_edge = left_edge1
     right_edge = right_edge1
-    hist = SubPolygon(polygon, 'hist', base_edge, left_edge, right_edge)
-    upper_chain, projected_points = hist.computer_hist_schedule()
-    fig, ax = plt.subplots()
-    draw_polygon(polygon1)
-    plt.scatter(projected_points[:, 0], projected_points[:, 1], c='r')
-    for i in range(len(upper_chain)):
-        plt.plot([upper_chain[i, 0], projected_points[i, 0]], [upper_chain[i, 1], projected_points[i, 1]], c=[0.7, 0.7, 0.7])
+    speed = speed1
 
-    plt.axis('equal')
-    plt.show()
-    plt.close(fig)
+    t = 0
+    for i in range(2, len(polygon) - 1):
+        a = polygon[i]
+        b = polygon[i + 1]
+        t += l2_dist(a, b)
+    print(t)
+
+    hist = SubPolygon(polygon, 'hist', base_edge, left_edge, right_edge)
+    schedule, t = hist.compute_schedule()
+    print(t)
+    plt.ion()
+    # fig, ax = plt.subplots()
+    # for s in schedule[0]:
+    #
+    #     draw_polygon(polygon)
+    #     plt.plot([s[0][0], s[1][0]], [s[0][1], s[1][1]], color=[0.7, 0.7, 0.7])
+    #     plt.show()
+    #     plt.axis('equal')
+    #     plt.waitforbuttonpress()
+    # plt.close(fig)
+
+    animate_schedule([list(polygon)], [], schedule, speed)
+    plt.waitforbuttonpress()
+    plt.close()
+
+
+def test_vis_sweep():
+    polygon = [[216.134, 601.741], [219.497, 584.058], [235.228, 588.18], [225.247, 600.548], [238.699, 607.491],
+        [228.285, 608.576], [238.265, 618.665], [236.638, 627.887], [230.237, 632.986], [223.945, 624.09],
+        [216.242, 631.792], [197.04, 628.755], [206.262, 615.519], [190.314, 618.774], [204.526, 602.718],
+        [189.989, 599.571], [193.135, 592.303], [208.106, 597.727], [208.323, 591.652]]
+    left_edge = [[216.134, 601.741], [208.323, 591.652]]
+    right_edge = [[216.134, 601.741], [219.497, 584.058]]
+    speed = 20
+    t = 0
+    for i in range(1, len(polygon) - 1):
+        a = polygon[i]
+        b = polygon[i + 1]
+        t += l2_dist(a, b)
+    print(t)
+
+    hist = SubPolygon(polygon, 'vis', left_edge=left_edge, right_edge=right_edge)
+    schedule, t = hist.compute_schedule()
+    print(t)
+    plt.ion()
+    animate_schedule([list(polygon)], [], schedule, speed)
+    plt.waitforbuttonpress()
+    plt.close()
 
 
 if __name__ == '__main__':
     # test_vis()
     # test_hist()
     test_hist_sweep()
+    test_vis_sweep()
