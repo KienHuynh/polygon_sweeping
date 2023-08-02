@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
-from numpy.linalg import inv
 from dijkstra import Graph, DijkstraSPF
 import copy
 
@@ -16,82 +15,6 @@ from pslg import *
 from config import *
 from graph import *
 from animate import *
-
-
-
-def find_degen_intersection(p, n, e):
-    """
-    Check if either endpoints of edge e belong to the line xn - pn
-    :param p: [x, y]
-    :param d: [x, y]
-    :param e: [[x1, y1], [x2, y2]]
-    :return:
-    """
-    d1 = e[0,:]@n - p@n
-    d2 = e[1,:]@n - p@n
-    if d1 == 0:
-        if d2 == 0:
-            return []
-        else:
-            return e[0, :]
-    elif d2 == 0:
-        return e[1, :]
-    return []
-
-
-
-def find_lowest_vert_intersection(p, d, pslg: PSLG):
-    """
-    Find the lowest intersection with pslg when shooting a ray in the d direction from p,
-    return the intersection point and the edge in pslg the ray intersects with
-    :param p: [x, y]
-    :param d: [x, y]
-    :param pslg: PSLG
-    :return: ([x, y], Edge), [x, y] are the coordinates of the intersection and Edge is the edge in PSLG
-    """
-    nv = np.copy(d)
-    nv[0], nv[1] = 0-nv[1], nv[0]
-    lowest = []
-    min_dist = 0
-    edge = []
-    for e in pslg.edge_set:
-        if (e.src.pos[0] == p[0] and e.src.pos[1] == p[1]) or  (e.to.pos[0] == p[0] and e.to.pos[1] == p[1]):
-            continue
-        if e.type == "poly":
-            #print(e.src.id, e.to.id)
-            #print(e.src.pos, e.to.pos)
-            if (above_below(e.src.pos, nv, p, True) * above_below(e.to.pos, nv, p, True)) <= 0:
-                nu = e.src.pos - e.to.pos
-                nu[0], nu[1] = 0-nu[1], nu[0]
-                u = e.src.pos
-                nuv = np.stack((nv, nu))
-                try:
-                    nuv = inv(nuv)
-                except np.linalg.LinAlgError as E:
-                    continue
-                else:
-                    pos_inv = nuv @ (np.asarray([p @ nv, u @ nu]).T)
-                    pos = pos_inv
-                    pos_deg = find_degen_intersection(p, nv, np.asarray([e.src.pos, e.to.pos]))
-                    if len(pos_deg) > 0:
-                        if pos_deg@nv - p@nv == 0:
-                            pos = pos_deg
-
-                if above_below(pos, d, p) <= 0:
-                    continue
-
-                if len(lowest) == 0:
-                    lowest = pos
-                    min_dist = get_norm(pos - p)
-                    edge = e
-                else:
-                    dist = get_norm(pos - p)
-                    if dist < min_dist:
-                        min_dist = dist
-                        lowest = pos
-                        edge = e
-
-    return lowest, edge
 
 
 def compute_histogram(polygon, e):
@@ -141,8 +64,13 @@ def compute_histogram(polygon, e):
         # Compute the visibility polygon from b0, restricted to the right of b0 and node
         right_polygon = pslg.get_left_subpolygon(ai, b0)
         # Shift the polygon by 1 because right now the first vertex is not b0
-        right_polygon = np.vstack((right_polygon[1:, :], right_polygon[0, :].reshape(1,2)))
-        right_polygon = np.asarray(poly_vis_cgal_boundary(right_polygon, right_polygon[0], right_polygon[-1]))
+        #right_polygon = np.vstack((right_polygon[1:, :], right_polygon[0, :].reshape(1,2)))
+        right_polygon = right_polygon[1:] + right_polygon[:1]
+        right_vis_polygon, right_subpolygons = vis_decompose(right_polygon, right_polygon[0], right_polygon[-1])
+
+        # Decompose right_polygon into smaller subpolygons: the vis polygon will be the parent, subtract the main polygon
+        # with the right vis polygon and we will have its children
+
 
     # Start going around P, compute the projected image of each reflex vertex onto the boundary of P with direction "up"
     while bi != a0:
@@ -164,13 +92,6 @@ def compute_histogram(polygon, e):
         ai = bi
         bi = bj
 
-    fig, ax = plt.subplots()
-    pslg.draw_adj_list()
-    plt.plot([a[0], b[0]], [a[1], b[1]], 'r')
-    plt.axis('equal')
-    plt.show()
-    plt.close()
-
     # Take special care of the last edge
     bj = b0
     # Check if ai is below or above a0b0
@@ -183,14 +104,20 @@ def compute_histogram(polygon, e):
         node = pslg.add_intersection(pos, edge, a0)
 
         left_polygon = pslg.get_left_subpolygon(a0, node.id)
-        left_polygon = np.asarray(poly_vis_cgal_boundary(left_polygon, left_polygon[0], left_polygon[-1])) - 0.1
+        left_vis_polygon, left_subpolygons = vis_decompose(left_polygon, left_polygon[0], left_polygon[-1])
 
     fig, ax = plt.subplots()
     pslg.draw_adj_list()
     if len(right_polygon) > 0:
-        draw_filled_polygon(right_polygon)
+        draw_filled_polygon(right_vis_polygon)
+        for p in right_subpolygons:
+            draw_polygon(p, 'r')
+
     if len(left_polygon) > 0:
-       draw_filled_polygon(left_polygon)
+       draw_filled_polygon(left_vis_polygon)
+       for p in left_subpolygons:
+           draw_polygon(p, 'r')
+       draw_polygon(left_polygon, 'g')
 
     #plt.plot(left_polygon[[-1, 0], 0], left_polygon[[-1, 0], 1], 'g')
     plt.plot([a[0], b[0]], [a[1], b[1]], 'r')

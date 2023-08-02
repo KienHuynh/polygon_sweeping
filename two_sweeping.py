@@ -861,7 +861,7 @@ def create_gif():
                [208, 656],[192, 640],[192, 588],[176, 588],[176, 592],
                [160, 592],[160, 576], [128, 576],[128, 640], [160, 640]]
     #polygon = polygon[::-1]
-    boundary_polygon = [[288, 576], [288, 640], [256, 672], [128, 672], [96, 640], [96, 576], [128, 544], [256, 544], [288, 576]]
+    #boundary_polygon = [[288, 576], [288, 640], [256, 672], [128, 672], [96, 640], [96, 576], [128, 544], [256, 544], [288, 576]]
     boundary_polygon = np.array(polygon)
     boundary_polygon = np.concatenate((boundary_polygon, np.asarray([[160, 624]])), 0)
 
@@ -888,6 +888,6 @@ def create_gif():
 
 
 if __name__ == '__main__':
-    #create_gif()
-    test_without_hole()
+    create_gif()
+    #test_without_hole()
     #test_with_hole()
