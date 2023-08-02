@@ -7,8 +7,12 @@ from typing import List
 from config import *
 import sys
 import os
+import struct
 import subprocess
 import numpy as np
+from numpy.linalg import inv
+
+from pslg import *
 
 
 def area2(a, b, c):
@@ -102,6 +106,18 @@ def diagonal(a, b, verts):
     return in_cone(a, b, verts) and in_cone(b, a, verts) and diagonalie(a, b, verts)
 
 
+def point_equal(x, y):
+    """
+    Check if two points are the same
+    :param x: List of two numbers
+    :param y: List of two numbers
+    :return:
+    """
+    if x[0] == y[0] and x[1] == y[1]:
+        return True
+    return False
+
+
 def poly_vis_cgal_interior(verts: List[List[float]], query: [List[float]]) -> List[List[List[float]]]:
     """
     Computing visibility polygon of a query point (interior)
@@ -161,13 +177,129 @@ def poly_vis_cgal_boundary(verts: List[List[float]], query: [List[float]], pre_q
     popen.wait()
     output = popen.stdout.read().decode("utf-8")
     output = output.split()
-    output = [float(o) for o in output]
+    output = [struct.unpack('!d', bytes.fromhex(str(o)))[0] for o in output]
 
     vis_poly = []
     for i in range(0, len(output), 2):
         vis_poly.append([output[i], output[i+1]])
 
     return vis_poly
+
+
+def find_degen_intersection(p, n, e):
+    """
+    Check if either endpoints of edge e belong to the line xn - pn
+    :param p: [x, y]
+    :param d: [x, y]
+    :param e: [[x1, y1], [x2, y2]]
+    :return:
+    """
+    d1 = e[0,:]@n - p@n
+    d2 = e[1,:]@n - p@n
+    if d1 == 0:
+        if d2 == 0:
+            return []
+        else:
+            return e[0, :]
+    elif d2 == 0:
+        return e[1, :]
+    return []
+
+
+def find_lowest_vert_intersection(p, d, pslg: PSLG):
+    """
+    Find the lowest intersection with pslg when shooting a ray in the d direction from p,
+    return the intersection point and the edge in pslg the ray intersects with
+    :param p: [x, y]
+    :param d: [x, y]
+    :param pslg: PSLG
+    :return: ([x, y], Edge), [x, y] are the coordinates of the intersection and Edge is the edge in PSLG
+    """
+    nv = np.copy(d)
+    nv[0], nv[1] = 0-nv[1], nv[0]
+    lowest = []
+    min_dist = 0
+    edge = []
+    for e in pslg.edge_set:
+        if (e.src.pos[0] == p[0] and e.src.pos[1] == p[1]) or  (e.to.pos[0] == p[0] and e.to.pos[1] == p[1]):
+            continue
+        if e.type == "poly":
+            #print(e.src.id, e.to.id)
+            #print(e.src.pos, e.to.pos)
+            if (above_below(e.src.pos, nv, p, True) * above_below(e.to.pos, nv, p, True)) <= 0:
+                nu = e.src.pos - e.to.pos
+                nu[0], nu[1] = 0-nu[1], nu[0]
+                u = e.src.pos
+                nuv = np.stack((nv, nu))
+                try:
+                    nuv = inv(nuv)
+                except np.linalg.LinAlgError as E:
+                    continue
+                else:
+                    pos_inv = nuv @ (np.asarray([p @ nv, u @ nu]).T)
+                    pos = pos_inv
+                    pos_deg = find_degen_intersection(p, nv, np.asarray([e.src.pos, e.to.pos]))
+                    if len(pos_deg) > 0:
+                        if pos_deg@nv - p@nv == 0:
+                            pos = pos_deg
+
+                if above_below(pos, d, p) <= 0:
+                    continue
+
+                if len(lowest) == 0:
+                    lowest = pos
+                    min_dist = get_norm(pos - p)
+                    edge = e
+                else:
+                    dist = get_norm(pos - p)
+                    if dist < min_dist:
+                        min_dist = dist
+                        lowest = pos
+                        edge = e
+
+    return lowest, edge
+
+
+def find_seen_edge(p, d, polygon):
+    nv = np.copy(d)
+    nv[0], nv[1] = 0 - nv[1], nv[0]
+    min_dist = 0
+    edge = []
+    edge_index = []
+
+    for i in range(len(polygon)-1):
+        p1 = polygon[i]
+        p2 = polygon[i+1]
+        if (above_below(p1, nv, p, True) * above_below(p2, nv, p, True)) < 0:
+            nu = p1 - p2
+            nu[0], nu[1] = 0 - nu[1], nu[0]
+            u = p1
+            nuv = np.stack((nv, nu))
+            try:
+                nuv = inv(nuv)
+            except np.linalg.LinAlgError as E:
+                continue
+            else:
+                pos_inv = nuv @ (np.asarray([p @ nv, u @ nu]).T)
+                pos = pos_inv
+                pos_deg = find_degen_intersection(p, nv, np.asarray([p1, p2]))
+                if len(pos_deg) > 0:
+                    if pos_deg @ nv - p @ nv == 0:
+                        pos = pos_deg
+
+            if len(edge) == 0:
+                lowest = pos
+                min_dist = get_norm(pos - p)
+                edge = [p1, p2]
+                edge_index = [i, i+1]
+            else:
+                dist = get_norm(pos - p)
+                if dist < min_dist:
+                    min_dist = dist
+                    lowest = pos
+                    edge = [p1, p2]
+                    edge_index = [i, i+1]
+    return edge, edge_index
 
 
 def vis_decompose(polygon: List[List[float]], query: [List[float]], pre_query: [List[float]]) -> List[List[List[float]]]:
@@ -181,8 +313,60 @@ def vis_decompose(polygon: List[List[float]], query: [List[float]], pre_query: [
     :param pre_query: Point on the boundary of the polygon preceding the query point
     :return:
     """
+    n = len(polygon)
+    vis_polygon = poly_vis_cgal_boundary(polygon, query, pre_query)
+    m = len(vis_polygon)
+    v_head = [x for x in range(len(vis_polygon)) if point_equal(vis_polygon[x], query)]
+    v_head = v_head[0]
+    vis_polygon = vis_polygon[v_head:] + vis_polygon[:v_head]
+
+    subpolygons = []
+    i = 1 # Note that since the query point is a vertex of the polygon, it will always see the first edge and last edge
+    j = 1
+    while i != m - 1:
+        if point_equal(vis_polygon[i + 1], polygon[j + 1]):
+            i += 1
+            j += 1
+            continue
+
+        # If there is a different with the next vertices, the there is a subpolygon
+        subpoly = []
+
+        # Special case where the visibility point is also a vertex of P
+        ind = [x for x in range(len(polygon)) if point_equal(polygon[x], vis_polygon[i+1])]
+        if len(ind) > 0:
+            subpoly += polygon[j:(ind[0] + 1)]
+            j = ind[0]
+            i += 1
+            subpolygons.append(subpoly)
+            continue
+
+        pi = np.asarray(vis_polygon[i + 1])
+        direction = pi - vis_polygon[0]
+
+        edge, edge_index = find_seen_edge(pi, direction, polygon[1:])
+        edge_index[0] += 1
+        edge_index[1] += 1
+
+        if point_equal(edge[1], polygon[j+1]):
+            subpoly.append(pi)
+            r = [x for x in range(len(polygon)) if point_equal(polygon[x], vis_polygon[i+2])]
+            r = r[0]
+            subpoly += polygon[edge_index[1]:(r+1)]
+            i += 2
+            j = r
+        else:
+            subpoly += polygon[j:(edge_index[0] + 1)]
+            subpoly.append(vis_polygon[i+1])
+            i += 1
+            j = edge_index[0]
+
+        subpolygons.append(subpoly)
+
+        #while not point_equal(vis_polygon[i], polygon[j + 1]):
 
 
+    return (vis_polygon, subpolygons)
 
 
 def above_below(p, n, a, use_normal=True):
