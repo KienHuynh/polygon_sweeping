@@ -3,6 +3,7 @@
 #include <CGAL/Triangular_expansion_visibility_2.h>
 #include <CGAL/Simple_polygon_visibility_2.h>
 #include <CGAL/Arrangement_2.h>
+#include "arr_print.h"
 #include <CGAL/Arr_segment_traits_2.h>
 #include <CGAL/Arr_naive_point_location.h>
 #include <CGAL/Quotient.h>
@@ -20,6 +21,11 @@ typedef Arrangement_2::Ccb_halfedge_circulator                          Ccb_half
 
 // Define the used visibility class
 typedef CGAL::Triangular_expansion_visibility_2<Arrangement_2>  TEV;
+
+union myUnion {
+	double dValue;
+	uint64_t iValue;
+};
 
 
 void interior_vis(std::vector<Segment_2> segments, std::vector<double> q_) {
@@ -76,12 +82,15 @@ void interior_vis(std::vector<Segment_2> segments, std::vector<double> q_) {
 	}
 
 	for (auto o : output) {
-		std::cout << o[0] << " " << o[1] << " ";
+		myUnion num0, num1;
+		num0.dValue = o[0];
+		num1.dValue = o[1];
+		std::cout << num0.iValue << " " << num1.iValue << " ";
 	}
 }
 
 
-void boundary_vis(std::vector<Segment_2> segments, std::vector<double> q_, std::vector<double> pre_q_) {
+void boundary_vis(std::vector<Segment_2> segments, std::vector<double> q_, std::vector<double> pre_q_, bool print_hex) {
 	Point_2 q(q_[0], q_[1]);
 	Point_2 pre_q(pre_q_[0], pre_q_[1]);
 
@@ -101,14 +110,27 @@ void boundary_vis(std::vector<Segment_2> segments, std::vector<double> q_, std::
 	Face_handle fh = tev.compute_visibility(query_point, he, output_arr);
 	//print out the visibility region.
 	Arrangement_2::Ccb_halfedge_circulator curr = fh->outer_ccb();
+	//print_arrangement(env);
+	//print_arrangement(output_arr);
 	std::vector<Point_2> output;
 	output.push_back(curr->target()->point());
 	while (++curr != fh->outer_ccb()) {
 		output.push_back(curr->target()->point());
 	}
 
-	for (auto o : output) {
-		std::cout << o.x() << " " << o.y() << " ";
+	if (print_hex) {
+		std::cout << std::hex;
+		for (auto o : output) {
+			myUnion num0, num1;
+			num0.dValue = CGAL::to_double(o.x());
+			num1.dValue = CGAL::to_double(o.y());
+			std::cout << num0.iValue << " " << num1.iValue << " ";
+		}
+	}
+	else {
+		for (auto o : output) {
+			std::cout << o.x() << " " << o.y() << " ";
+		}
 	}
 }
 
@@ -120,12 +142,14 @@ int main(int argc, char **argv) {
 		("verts", "A list of floats", cxxopts::value<std::vector<double>>())
 		("query", "Query point", cxxopts::value<std::vector<double>>())
 		("pre_query", "Point on the polygon BEFORE the query point (CCW)", cxxopts::value<std::vector<double>>()->default_value("0,0"))
-		("boundary", "Specify if computing visibility for point on boundary", cxxopts::value<bool>()->default_value("false"));
+		("boundary", "Specify if computing visibility for point on boundary", cxxopts::value<bool>()->default_value("false"))
+		("print_hex", "Specify if print the numbers in hex", cxxopts::value<bool>()->default_value("true"));
 	auto cmd = options.parse(argc, argv);
 	std::vector<double> verts = cmd["verts"].as<std::vector<double>>();
 	std::vector<double> q_ = cmd["query"].as<std::vector<double>>();
 	std::vector<double> pre_q_ = cmd["pre_query"].as<std::vector<double>>();
 	bool boundary = cmd["boundary"].as<bool>();
+	bool print_hex = cmd["print_hex"].as<bool>();
 
 	//create environment
 	std::vector<Point_2> points;
@@ -141,7 +165,7 @@ int main(int argc, char **argv) {
 	segments.push_back(Segment_2(points.back(), points.front()));
 
 	if (boundary) {
-		boundary_vis(segments, q_, pre_q_);
+		boundary_vis(segments, q_, pre_q_, print_hex);
 	}
 	else {
 		interior_vis(segments, q_);
