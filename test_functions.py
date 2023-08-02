@@ -1,17 +1,5 @@
 from two_sweeping_approx import *
 
-
-def draw_polygon(polygon, color='k'):
-    n = len(polygon)
-    plt.plot(polygon[:, 0], polygon[:, 1], color)
-    plt.plot(polygon[[n-1, 0], 0], polygon[[n-1, 0], 1], color)
-
-
-def draw_filled_polygon(polygon, color=[1, 0.9, 0.6]):
-    n = len(polygon)
-    polygon = np.vstack((polygon, polygon[-1, :].reshape(1,2)))
-    plt.fill(polygon[:, 0], polygon[:, 1], color = color)
-
 def test_vis():
     #polygon = [[0, 0], [1, 1], [2, 0], [2, 4], [1, 2], [0, 4]]
     #query = [0.1, 0.3]
@@ -74,8 +62,8 @@ def test_hist():
         [204, 680], [184, 680], [184, 668], [196, 668], [196, 640], [176, 640],
         [176, 624], [224, 624]]
 
-    polygon = polygon7
-    for i in range(0, len(polygon)):
+    polygon = polygon6
+    for i in range(4, len(polygon)):
         edge_i = [polygon[i], polygon[(i + 1) % len(polygon)]]
         compute_histogram(polygon, edge_i)
 
@@ -92,7 +80,7 @@ def test_hist_sweep():
     base_edge1 = polygon1[[0, 1], :]
     left_edge1 = polygon1[[0, n1-1], :]
     right_edge1= polygon1[[1, 2], :]
-    speed1 = 40
+    speed1 = 25
 
     polygon = polygon1
     base_edge = base_edge1
@@ -121,7 +109,7 @@ def test_hist_sweep():
     #     plt.waitforbuttonpress()
     # plt.close(fig)
 
-    animate_schedule([list(polygon)], [], schedule, speed)
+    animate_schedule_gif([polygon], [], schedule, speed, np.asarray(polygon))
     plt.waitforbuttonpress()
     plt.close()
 
@@ -133,7 +121,7 @@ def test_vis_sweep():
         [189.989, 599.571], [193.135, 592.303], [208.106, 597.727], [208.323, 591.652]]
     left_edge = [[216.134, 601.741], [208.323, 591.652]]
     right_edge = [[216.134, 601.741], [219.497, 584.058]]
-    speed = 20
+    speed = 40
     t = 0
     for i in range(1, len(polygon) - 1):
         a = polygon[i]
@@ -145,13 +133,13 @@ def test_vis_sweep():
     schedule, t = hist.compute_schedule()
     print(t)
     plt.ion()
-    animate_schedule([list(polygon)], [], schedule, speed)
+    animate_schedule_gif([list(polygon)], [], schedule, speed, np.asarray(polygon))
     plt.waitforbuttonpress()
     plt.close()
 
 
 if __name__ == '__main__':
     # test_vis()
-    # test_hist()
-    test_hist_sweep()
-    test_vis_sweep()
+    test_hist()
+    #test_hist_sweep()
+    #test_vis_sweep()
