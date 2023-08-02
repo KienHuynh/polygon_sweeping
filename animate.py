@@ -30,7 +30,21 @@ def get_curr_point(verts, t, speed):
     return verts[-1]
 
 
-def draw_polys(ps, ax, linewidth=0.5, edgecolor='0.7'):
+def draw_polygon(polygon, color='k'):
+    n = len(polygon)
+    polygon = np.asarray(polygon)
+    plt.plot(polygon[:, 0], polygon[:, 1], color)
+    plt.plot(polygon[[n-1, 0], 0], polygon[[n-1, 0], 1], color)
+
+
+def draw_filled_polygon(polygon, color=[1, 0.9, 0.6]):
+    n = len(polygon)
+    polygon = np.asarray(polygon)
+    polygon = np.vstack((polygon, polygon[-1, :].reshape(1,2)))
+    plt.fill(polygon[:, 0], polygon[:, 1], color = color)
+
+
+def draw_poly_nodes(ps, ax, linewidth=0.5, edgecolor='0.7'):
     """
     Draw polygons
     :param ps: List[PolyNode]
@@ -63,8 +77,8 @@ def animate_schedule(polygons, subpolygons, schedule, speed):
     :return: None
     """
     fig, ax = plt.subplots()
-    draw_polys([PolyNode(p) for p in polygons], ax, edgecolor=[0, 0, 0], linewidth=1)
-    draw_polys(subpolygons, ax)
+    draw_poly_nodes([PolyNode(p) for p in polygons], ax, edgecolor=[0, 0, 0], linewidth=1)
+    draw_poly_nodes(subpolygons, ax)
     plt.axis('equal')
     plt.waitforbuttonpress()
 
@@ -109,10 +123,12 @@ def animate_schedule_gif(polygons, subpolygons, schedule, speed, boundary_polygo
     """
     fig, ax = plt.subplots()
     plt.plot(boundary_polygon[:, 0], boundary_polygon[:, 1], 'k')
-    rectangle = np.min(boundary_polygon, 0)
-    r_width, r_height = np.max(boundary_polygon, 0) - np.min(boundary_polygon, 0)
-    patch = patches.Rectangle(rectangle, r_width, r_height, facecolor = [1,1,1])
-    ax.add_patch(patch)
+    n = len(boundary_polygon)
+    plt.plot(boundary_polygon[[n- 1, 0], 0], boundary_polygon[[n- 1, 0], 1], 'k')
+    # rectangle = np.min(boundary_polygon, 0)
+    # r_width, r_height = np.max(boundary_polygon, 0) - np.min(boundary_polygon, 0)
+    # patch = patches.Rectangle(rectangle, r_width, r_height, facecolor = [1,1,1])
+    # ax.add_patch(patch)
     #draw_polys([PolyNode(p) for p in polygons], ax, edgecolor=[0, 0, 0], linewidth=1)
     #draw_polys(subpolygons, ax)
     plt.axis('equal')
@@ -141,7 +157,7 @@ def animate_schedule_gif(polygons, subpolygons, schedule, speed, boundary_polygo
 
             x = [segment_path[0, 0, 0], segment_path[0, 0, 1], segment_path[1, 0, 1], segment_path[1, 0, 0]]
             y = [segment_path[0, 1, 0], segment_path[0, 1, 1], segment_path[1, 1, 1], segment_path[1, 1, 0]]
-            plt.fill(x, y, facecolor = [1, 0.8, 0.5], alpha=1)
+            plt.fill(x, y, facecolor = [1, 0.8, 0.5], alpha=1, edgecolor=[1, 0.8, 0.5])
             line.set_data([a[0], b[0]], [a[1], b[1]])
             scatter.set_offsets([[a[0], a[1]], [b[0], b[1]]])
             plt.show()
