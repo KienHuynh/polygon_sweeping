@@ -148,4 +148,4 @@ class PSLG:
             next_e = [e for e in self.edges[next_node.id] if e.type == 'poly']
             next_e = next_e[0]
 
-        return np.asarray(subpolygon)
+        return subpolygon
