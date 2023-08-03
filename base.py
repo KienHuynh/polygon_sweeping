@@ -12,6 +12,7 @@ import subprocess
 import numpy as np
 from numpy.linalg import inv
 
+from dijkstra import Graph, DijkstraSPF
 from pslg import *
 
 
@@ -116,6 +117,39 @@ def point_equal(x, y):
     if x[0] == y[0] and x[1] == y[1]:
         return True
     return False
+
+
+def create_vis_graph(vertices: List[List[float]], holes: List[List[List[float]]] = None) -> Graph:
+    """
+    Create a visibility graph based on the vertices of the polygon
+    :param vertices: List[List[float]]
+    :return: Graph object
+    """
+
+    graph = Graph()
+    for i in range(len(vertices)):
+        for j in range(i + 1, len(vertices)):
+            vis = True
+            for k in range(len(vertices)):
+                k1 = k
+                k2 = (k + 1) % (len(vertices))
+                if (k1 == i) and (k2 == j):
+                    vis = True
+                    break
+
+                if not diagonal(i, j, vertices) and ((i + 1) % len(vertices)) != j and ((j + 1) % len(vertices)) != i:
+                    vis = False
+                    break
+
+                if intersectProp(vertices[i], vertices[j], vertices[k1], vertices[k2]):
+                    vis = False
+                    break
+
+            if vis:
+                d = l2_dist(vertices[i], vertices[j])
+                graph.add_edge(i, j, d)
+                graph.add_edge(j, i, d)
+    return graph
 
 
 def poly_vis_cgal_interior(verts: List[List[float]], query: [List[float]]) -> List[List[List[float]]]:
@@ -329,7 +363,7 @@ def vis_decompose(polygon: List[List[float]], query: [List[float]], pre_query: [
             j += 1
             continue
 
-        # If there is a different with the next vertices, the there is a subpolygon
+        # If there is a different with the next vertices, then there is a subpolygon
         subpoly = []
 
         # Special case where the visibility point is also a vertex of P
@@ -338,6 +372,7 @@ def vis_decompose(polygon: List[List[float]], query: [List[float]], pre_query: [
             subpoly += polygon[j:(ind[0] + 1)]
             j = ind[0]
             i += 1
+            subpoly = subpoly[-1:] + subpoly[:-1]
             subpolygons.append(subpoly)
             continue
 
@@ -361,12 +396,54 @@ def vis_decompose(polygon: List[List[float]], query: [List[float]], pre_query: [
             i += 1
             j = edge_index[0]
 
+        subpoly = subpoly[-1:] + subpoly[:-1]
         subpolygons.append(subpoly)
 
         #while not point_equal(vis_polygon[i], polygon[j + 1]):
 
 
     return (vis_polygon, subpolygons)
+
+
+def hist_decompose(pslg: PSLG, a0):
+    """
+    Get the children of the histogram polygon
+    :param pslg:
+    :param a0:
+    :return:
+    """
+    hist_polygon = [list(pslg.nodes[a0].pos)]
+    subpolygons = []
+    p = a0 + 1
+    while p != a0:
+        edge = []
+        edges = [e for e in pslg.edges[p] if e.to.visited == False]
+
+        if len(edges) == 0:
+            break
+        if len(edges) == 1:
+            edge = edges[0]
+        else:
+            edge = [e for e in edges if e.type == 'vis']
+            edge = edge[0] # This is the interface edge
+            # Get the subpolygon to the right of this visibility edge
+            subpoly = pslg.get_left_subpolygon(edge.to.id, edge.src.id)
+            #subpoly = subpoly[1:] + subpoly[:1]
+            subpolygons.append(subpoly)
+
+        p = edge.to.id
+        edge.src.visited = True
+        hist_polygon.append(list(pslg.nodes[edge.src.id].pos))
+
+
+    if (len(subpolygons) > 0):
+        if point_equal(subpolygons[-1][0], pslg.nodes[a0].pos):
+            subpolygons = subpolygons[:-1]
+    if (len(subpolygons) > 0):
+        if point_equal(subpolygons[0][1], pslg.nodes[a0+1].pos):
+            subpolygons = subpolygons[1:]
+
+    return (hist_polygon, subpolygons)
 
 
 def above_below(p, n, a, use_normal=True):
