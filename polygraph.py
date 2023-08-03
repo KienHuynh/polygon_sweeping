@@ -1,5 +1,6 @@
 from typing import List
 import numpy as np
+import traceback
 
 from animate import *
 from base import *
@@ -42,13 +43,19 @@ class SubPolygon:
         self.left_edge = left_edge
 
 
-    def compute_hist_schedule(self, starting_point=False, ending_point=False):
+    def compute_hist_schedule(self, starting_point=False, r2l=True):
         """
 
         :param starting_point: if True, assume that the starting point is the bottom right vertex of the histogram,
         then add the transition from this starting point to the right edge
         :return: schedule, t
         """
+        if r2l:
+            starting_edge = self.right_edge
+        else:
+            starting_edge = self.left_edge
+
+
         origin = self.base_edge[0]
         unit_v = np.asarray([1, 0])
         base_edge = np.asarray(self.base_edge) - origin
@@ -73,13 +80,6 @@ class SubPolygon:
         #polygon = polygon[::-1, :]
         #projections = projections[::-1, :]
         schedule = []
-        if starting_point:
-            schedule += [
-                [
-                    [self.right_edge[0], self.right_edge[0]],
-                    self.right_edge
-                ]
-            ]
 
         schedule += [
                     [
@@ -102,27 +102,29 @@ class SubPolygon:
         ]
         schedule.append(s)
 
-        if ending_point:
-            schedule += [
+        if not r2l:
+            schedule = schedule[::-1]
+            schedule = [s[::-1] for s in schedule]
+
+        if starting_point:
+            schedule.insert(0,
                 [
-                    self.left_edge,
-                    [self.left_edge[1], self.left_edge[1]]
-                ]
-            ]
+                    [starting_edge[0], starting_edge[0]],
+                    starting_edge
+                ])
 
         return schedule
 
 
-    def compute_vis_schedule(self, starting_point=False, ending_point=False):
+    def compute_vis_schedule(self, starting_point=False, r2l=True):
+        if r2l:
+            starting_edge = self.right_edge
+        else:
+            starting_edge = self.left_edge
+
         schedule = []
         origin = self.polygon[0]
-        if starting_point:
-            schedule = [
-                [
-                    [self.right_edge[0], self.right_edge[0]],
-                    self.right_edge
-                ]
-            ]
+
         for i in range(1, len(self.polygon)-1):
             s = [
                 [origin, list(self.polygon[i])],
@@ -130,17 +132,21 @@ class SubPolygon:
                 ]
             schedule.append(s)
 
-        if ending_point:
-            schedule += [
+        if not r2l:
+            schedule = schedule[::-1]
+            schedule = [s[::-1] for s in schedule]
+
+        if starting_point:
+            schedule.insert(0,
                 [
-                    self.left_edge,
-                    [self.left_edge[0], self.left_edge[0]]
-                ]
-            ]
+                    [starting_edge[0], starting_edge[0]],
+                    starting_edge
+                ])
+
         return schedule
 
 
-    def compute_schedule(self, starting_point=False, ending_point=False):
+    def compute_schedule(self, starting_point=False, r2l=True):
         """
         If histogram:
         assume the starting configuration is the right edge, sweep until the segment becomes the left edge
@@ -150,9 +156,9 @@ class SubPolygon:
         """
         schedule = []
         if self.type == 'hist':
-            schedule = self.compute_hist_schedule(starting_point, ending_point)
+            schedule = self.compute_hist_schedule(starting_point, r2l)
         if self.type == 'vis':
-            schedule = self.compute_vis_schedule(starting_point, ending_point)
+            schedule = self.compute_vis_schedule(starting_point, r2l)
 
         t = 0
         for s in schedule:
@@ -166,9 +172,11 @@ class SubPolygon:
 
 
 class HistogramNode:
-    def __init__(self):
+    def __init__(self, r2l):
+        # This is to indicate if the main polygon is to be swept right-to-left or left-to-right
+        self.r2l = r2l
+
         # This stores the actual polygons from the vis/histogram decomposition
-        # Note that it is ordered ('right' to 'left')
         self.subpolygons = []
         self.dividers = []  # These are the chords inbetween the subpolygons
 
@@ -184,8 +192,8 @@ class HistogramNode:
         # This is the interface edge
         self.interface_edge = []
 
-    def compute_outer_boundary(self):
 
+    def compute_outer_boundary(self):
         # Get all of the base edges of the histogram, i.e. the bottom reflex chain
         last_p = []
         for p in self.subpolygons[::-1]:
@@ -224,8 +232,22 @@ class HistogramNode:
         :param t:
         :return:
         """
-        si = [i for i in range(len(self.outer_boundary)) if point_equal(self.outer_boundary[i], s)][0]
-        ti = [i for i in range(len(self.outer_boundary)) if point_equal(self.outer_boundary[i], t)][0]
+        si = [i for i in range(len(self.outer_boundary)) if point_equal(self.outer_boundary[i], s)]
+        ti = [i for i in range(len(self.outer_boundary)) if point_equal(self.outer_boundary[i], t)]
+        if len(si) == 0 or len(ti) == 0:
+            thereisanerror = 0
+            draw_polygon(self.outer_boundary, 'k')
+            plt.scatter(t[0], t[1], color='r')
+            plt.scatter(self.outer_boundary[0][0], self.outer_boundary[0][1], color='r')
+            plt.axis('equal')
+            plt.show()
+            traceback.print_stack()
+            xxx = 1
+
+        si = si[0]
+        ti = ti[0]
+
+
         dijkstra = DijkstraSPF(self.vis_graph, si)
         path = dijkstra.get_path(ti)
         return path
@@ -237,27 +259,39 @@ class HistogramNode:
             result += c.get_all_outer_boundary()
         return result
 
+
     def compute_schedule(self, no_return=False, next_sibling_point=None, visualize=False):
         schedule = []
         time = 0
 
         # Compute the sweeping schedule for the histogram polygon and the vis polygons of this node
-        for i in range(len(self.subpolygons)):
-            p = self.subpolygons[i]
+        subpolygons = self.subpolygons
+        if not self.r2l:
+            subpolygons = subpolygons[::-1]
+
+        for i in range(len(subpolygons)):
+            p = subpolygons[i]
             starting_point = False
             if i == 0:
                 starting_point = True
-            s, t = p.compute_schedule(starting_point=starting_point)
+            s, t = p.compute_schedule(starting_point=starting_point, r2l=self.r2l)
             schedule += s
             time += t
         current_edge = schedule[-1][-1]
 
-        for i in range(len(self.children)):
+        if self.r2l:
+            children = self.children
+        else:
+            children = self.children[::-1]
+        for i in range(len(children)):
             # Move to child node
-            c = self.children[i]
-            ie = c.interface_edge
-            stp_a = self.compute_shortest_path(current_edge[0], ie[1])
-            stp_b = self.compute_shortest_path(current_edge[1], ie[1])
+            c = children[i]
+            if self.r2l:
+                interface_point = c.interface_edge[0]
+            else:
+                interface_point = c.interface_edge[1]
+            stp_a = self.compute_shortest_path(current_edge[0], interface_point)
+            stp_b = self.compute_shortest_path(current_edge[1], interface_point)
             stp_a = [self.outer_boundary[x] for x in stp_a]
             stp_b = [self.outer_boundary[x] for x in stp_b]
             if len(stp_b) == len(stp_a)-1:
@@ -278,6 +312,7 @@ class HistogramNode:
                 c_no_return = True
             else:
                 c_no_return = False
+
             c_schedule = c.compute_schedule(no_return and c_no_return)
             schedule += c_schedule
             current_edge = c_schedule[-1][-1]
@@ -285,10 +320,13 @@ class HistogramNode:
         if no_return:
             return schedule
 
-        ie = self.interface_edge
+        if self.r2l:
+            interface_point = self.interface_edge[0]
+        else:
+            interface_point = self.interface_edge[1]
 
-        stp_a = self.compute_shortest_path(current_edge[0], ie[1])
-        stp_b = self.compute_shortest_path(current_edge[1], ie[1])
+        stp_a = self.compute_shortest_path(current_edge[0], interface_point)
+        stp_b = self.compute_shortest_path(current_edge[1], interface_point)
         stp_a = [self.outer_boundary[x] for x in stp_a]
         stp_b = [self.outer_boundary[x] for x in stp_b]
         if len(stp_b) == len(stp_a) - 1:
