@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 
 import numpy as np
-from dijkstra import Graph, DijkstraSPF
 import copy
 
 import subprocess
@@ -12,38 +11,6 @@ from typing import List
 from base import *
 from config import *
 from animate import *
-
-def create_vis_graph(vertices: List[List[float]], holes: List[List[List[float]]] = None) -> Graph:
-    """
-    Create a visibility graph based on the vertices of the polygon
-    :param vertices: List[List[float]]
-    :return: Graph object
-    """
-
-    graph = Graph()
-    for i in range(len(vertices)):
-        for j in range(i + 1, len(vertices)):
-            vis = True
-            for k in range(len(vertices)):
-                k1 = k
-                k2 = (k + 1) % (len(vertices))
-                if (k1 == i) and (k2 == j):
-                    vis = True
-                    break
-
-                if not diagonal(i, j, vertices) and ((i + 1) % len(vertices)) != j and ((j + 1) % len(vertices)) != i:
-                    vis = False
-                    break
-
-                if intersectProp(vertices[i], vertices[j], vertices[k1], vertices[k2]):
-                    vis = False
-                    break
-
-            if vis:
-                d = l2_dist(vertices[i], vertices[j])
-                graph.add_edge(i, j, d)
-                graph.add_edge(j, i, d)
-    return graph
 
 
 def is_same_poly(polys, edge):
@@ -634,24 +601,6 @@ def dfs(polygons: List[PolyNode], root: PolyNode,
     return schedule
 
 
-def draw_vis_graph(vertices: List[List[float]], g: Graph) -> None:
-    """
-    Draw the visibility graph of the vertices in a polygon
-    :param vertices: List[List[float]]], list of vertices
-    :param g: Graph, the graph computed from create_vis_graph or create_vis_graph_with_holes
-    :return: None
-    """
-    for node in list(g.get_nodes()):
-        for neighbor in list(g.get_adjacent_nodes(node)):
-            v1 = vertices[node]
-            v2 = vertices[neighbor]
-            plt.plot([v1[0], v2[0]], [v1[1], v2[1]], color='r', linewidth=0.5)
-            if node != 30:
-                plt.text(v1[0] + 0.5, v1[1], str(node))
-            if neighbor != 30:
-                plt.text(v2[0] + 0.5, v2[1], str(neighbor))
-
-
 def test_without_hole():
     plt.ion()
     speed = 15
@@ -729,8 +678,29 @@ def test_without_hole():
                 [212, 648], [224, 660], [188, 648], [212.249, 635.472],
                 [194.025, 628.747], [209.447, 628.807], [199.586, 615.738]]
     agents4 = [[224, 624], [221.467, 629.45]]
-    polygon = polygon4
-    agents = agents4
+
+    polygon6 = [[208, 560], [200, 552], [192, 560], [200, 564], [192, 572],
+                [212, 572], [200, 584], [220, 580], [228, 584], [236, 576],
+                [220, 568], [236, 556], [224, 560]]
+    polygon6 = polygon6[::-1]
+    polygon6 = polygon6[9:] + polygon6[0:9]
+    agents6 = polygon6[:2]
+    speed6 = 40
+
+    polygon8 = [[208, 368], [224, 368], [224, 352], [240, 352], [240, 384], [224, 384], [224, 392],
+                [236, 392], [236, 400], [224, 400], [224, 408], [248, 408], [248, 420], [224, 420],
+                [224, 428], [244, 428], [244, 440], [224, 440], [224, 452], [208, 452], [208, 436],
+                [196, 436], [196, 428], [208, 428], [208, 416], [192, 416], [192, 404], [208, 404],
+                [208, 392], [196, 392], [196, 384], [208, 384], [208, 376], [196, 376], [196, 352],
+                [208, 352]]
+    agents8 = [208, 368], [224, 368]
+    speed8 = 80
+
+
+
+    polygon = polygon8
+    agents = agents8
+    speed = speed8
 
     # Parition the polygon into conve pieces
     polygons = poly_decomp_cgal(polygon)
@@ -888,6 +858,6 @@ def create_gif():
 
 
 if __name__ == '__main__':
-    create_gif()
-    #test_without_hole()
+    #create_gif()
+    test_without_hole()
     #test_with_hole()
