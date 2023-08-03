@@ -2,7 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patches as patches
 
-from graph import *
+from polygraph import *
+from dijkstra import Graph, DijkstraSPF
+from base import point_equal, l2_dist
 import time
 
 
@@ -33,15 +35,33 @@ def get_curr_point(verts, t, speed):
 def draw_polygon(polygon, color='k'):
     n = len(polygon)
     polygon = np.asarray(polygon)
-    plt.plot(polygon[:, 0], polygon[:, 1], color)
-    plt.plot(polygon[[n-1, 0], 0], polygon[[n-1, 0], 1], color)
+    plt.plot(polygon[:, 0], polygon[:, 1], color=color)
+    plt.plot(polygon[[n-1, 0], 0], polygon[[n-1, 0], 1], color=color)
 
 
-def draw_filled_polygon(polygon, color=[1, 0.9, 0.6]):
+def draw_filled_polygon(polygon, color=[1, 0.9, 0.6], hatch=''):
     n = len(polygon)
     polygon = np.asarray(polygon)
     polygon = np.vstack((polygon, polygon[-1, :].reshape(1,2)))
-    plt.fill(polygon[:, 0], polygon[:, 1], color = color)
+    plt.fill(polygon[:, 0], polygon[:, 1], color = color, hatch=hatch)
+
+
+def draw_vis_graph(vertices: List[List[float]], g: Graph) -> None:
+    """
+    Draw the visibility graph of the vertices in a polygon
+    :param vertices: List[List[float]]], list of vertices
+    :param g: Graph, the graph computed from create_vis_graph or create_vis_graph_with_holes
+    :return: None
+    """
+    for node in list(g.get_nodes()):
+        for neighbor in list(g.get_adjacent_nodes(node)):
+            v1 = vertices[node]
+            v2 = vertices[neighbor]
+            plt.plot([v1[0], v2[0]], [v1[1], v2[1]], color='r', linewidth=0.5)
+            if node != 30:
+                plt.text(v1[0] + 0.5, v1[1], str(node))
+            if neighbor != 30:
+                plt.text(v2[0] + 0.5, v2[1], str(neighbor))
 
 
 def draw_poly_nodes(ps, ax, linewidth=0.5, edgecolor='0.7'):
@@ -67,7 +87,7 @@ def draw_poly_nodes(ps, ax, linewidth=0.5, edgecolor='0.7'):
     plt.draw()
 
 
-def animate_schedule(polygons, subpolygons, schedule, speed):
+def animate_schedule(polygons, subpolygons, schedule, speed, fig=None, ax=None, subpoly_color=[0.6, 0.6, 1]):
     """
     Animate the computed sweeping strategy
     :param polygon: List[List[float]], the original polygon and its holes
@@ -76,9 +96,19 @@ def animate_schedule(polygons, subpolygons, schedule, speed):
     :param speed: float, animation speed
     :return: None
     """
-    fig, ax = plt.subplots()
-    draw_poly_nodes([PolyNode(p) for p in polygons], ax, edgecolor=[0, 0, 0], linewidth=1)
-    draw_poly_nodes(subpolygons, ax)
+    if not fig:
+        fig, ax = plt.subplots()
+
+    if type(subpolygons[0]) == PolyNode:
+        draw_poly_nodes([PolyNode(p) for p in polygons], ax, edgecolor=[0, 0, 0], linewidth=1)
+        draw_poly_nodes(subpolygons, ax)
+    else:
+        for sp in subpolygons:
+            draw_polygon(sp, subpoly_color)
+
+        for p in polygons:
+            draw_polygon(p, 'k')
+
     plt.axis('equal')
     plt.waitforbuttonpress()
 
@@ -112,7 +142,7 @@ def animate_schedule(polygons, subpolygons, schedule, speed):
                 abc = 1
 
 
-def animate_schedule_gif(polygons, subpolygons, schedule, speed, boundary_polygon):
+def animate_schedule_gif(polygons, subpolygons, schedule, speed, boundary_polygon, fig=None, ax = None, subpoly_color=[0.6, 0.6, 1]):
     """
     Animate the computed sweeping strategy
     :param polygon: List[List[float]], the original polygon and its holes
@@ -121,7 +151,10 @@ def animate_schedule_gif(polygons, subpolygons, schedule, speed, boundary_polygo
     :param speed: float, animation speed
     :return: None
     """
-    fig, ax = plt.subplots()
+    if fig == None:
+        fig, ax = plt.subplots()
+    for sp in subpolygons:
+        draw_polygon(sp, subpoly_color)
     plt.plot(boundary_polygon[:, 0], boundary_polygon[:, 1], 'k')
     n = len(boundary_polygon)
     plt.plot(boundary_polygon[[n- 1, 0], 0], boundary_polygon[[n- 1, 0], 1], 'k')
@@ -142,12 +175,12 @@ def animate_schedule_gif(polygons, subpolygons, schedule, speed, boundary_polygo
     scatter = ax.scatter([a[0], b[0]], [a[1], b[1]], edgecolors='b', zorder=100)
 
     segment_path = np.asarray([[[a[0], b[0]], [a[1], b[1]]]])
-    #print(segment_path.shape)
     segment_path = np.concatenate((segment_path, segment_path), 0)
     for s in schedule:
         t0 = time.time()
         path_a = [x[0] for x in s]
         path_b = [x[1] for x in s]
+        xx = None
         while True:
             t1 = time.time()
             ela_time = t1 - t0
@@ -157,17 +190,17 @@ def animate_schedule_gif(polygons, subpolygons, schedule, speed, boundary_polygo
 
             x = [segment_path[0, 0, 0], segment_path[0, 0, 1], segment_path[1, 0, 1], segment_path[1, 0, 0]]
             y = [segment_path[0, 1, 0], segment_path[0, 1, 1], segment_path[1, 1, 1], segment_path[1, 1, 0]]
-            plt.fill(x, y, facecolor = [1, 0.8, 0.5], alpha=1, edgecolor=[1, 0.8, 0.5])
+            xx = plt.fill(x, y, facecolor = [1, 0.8, 0.5], alpha=1, edgecolor=[1, 0.8, 0.5])
             line.set_data([a[0], b[0]], [a[1], b[1]])
             scatter.set_offsets([[a[0], a[1]], [b[0], b[1]]])
             plt.show()
             plt.axis('equal')
-            plt.pause(0.001)
+            plt.pause(0.00000001)
 
             segment_path[0, :, :] = segment_path[1, :, :]
 
             try:
-                if list(a) == s[-1][0] and list(b) == s[-1][1]:
+                if point_equal(a, s[-1][0]) and point_equal(b, s[-1][1]): #list(a) == s[-1][0] and list(b) == s[-1][1]:
                     break
             except Exception as e:
                 abc = 1
