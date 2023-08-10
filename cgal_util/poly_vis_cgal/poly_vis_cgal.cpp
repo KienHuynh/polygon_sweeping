@@ -7,6 +7,8 @@
 #include <CGAL/Arr_segment_traits_2.h>
 #include <CGAL/Arr_naive_point_location.h>
 #include <CGAL/Quotient.h>
+
+#include <sstream>
 #include <istream>
 #include <vector>
 typedef CGAL::Exact_predicates_exact_constructions_kernel               Kernel;
@@ -139,22 +141,46 @@ void boundary_vis(std::vector<Segment_2> segments, std::vector<double> q_, std::
 int main(int argc, char **argv) {
 	cxxopts::Options options(argv[0], " - example command line options");
 	options.add_options()
-		("verts", "A list of floats", cxxopts::value<std::vector<double>>())
-		("query", "Query point", cxxopts::value<std::vector<double>>())
-		("pre_query", "Point on the polygon BEFORE the query point (CCW)", cxxopts::value<std::vector<double>>()->default_value("0,0"))
+		("verts", "A list of floats", cxxopts::value<std::vector<std::string>>())
+		("query", "Query point", cxxopts::value<std::vector<std::string>>())
+		("pre_query", "Point on the polygon BEFORE the query point (CCW)", cxxopts::value<std::vector<std::string>>()->default_value("0,0"))
 		("boundary", "Specify if computing visibility for point on boundary", cxxopts::value<bool>()->default_value("false"))
 		("print_hex", "Specify if print the numbers in hex", cxxopts::value<bool>()->default_value("true"));
 	auto cmd = options.parse(argc, argv);
-	std::vector<double> verts = cmd["verts"].as<std::vector<double>>();
-	std::vector<double> q_ = cmd["query"].as<std::vector<double>>();
-	std::vector<double> pre_q_ = cmd["pre_query"].as<std::vector<double>>();
+	std::vector<std::string> verts = cmd["verts"].as<std::vector<std::string>>();
+	std::vector<std::string> q_s = cmd["query"].as<std::vector<std::string>>();
+	std::vector<std::string> pre_q_s = cmd["pre_query"].as<std::vector<std::string>>();
 	bool boundary = cmd["boundary"].as<bool>();
 	bool print_hex = cmd["print_hex"].as<bool>();
+
+
+	std::vector<double> q_, pre_q_;
+	if (print_hex) {
+		myUnion qx, qy, pre_qx, pre_qy;
+		qx.iValue = std::stoull(q_s[0], nullptr, 16);
+		qy.iValue = std::stoull(q_s[1], nullptr, 16);
+		q_.push_back(qx.dValue);
+		q_.push_back(qy.dValue);
+		pre_qx.iValue = std::stoull(pre_q_s[0], nullptr, 16);
+		pre_qy.iValue = std::stoull(pre_q_s[1], nullptr, 16);
+		pre_q_.push_back(pre_qx.dValue);
+		pre_q_.push_back(pre_qy.dValue);
+	}
 
 	//create environment
 	std::vector<Point_2> points;
 	for (int i = 0; i < verts.size(); i += 2) {
-		points.push_back(Point_2(verts[i], verts[i + 1]));
+
+		if (print_hex) {
+			// Converting from hex code to double value
+			myUnion vx, vy;
+			vx.iValue = std::stoull(verts[i], nullptr, 16);
+			vy.iValue = std::stoull(verts[i+1], nullptr, 16);
+			points.push_back(Point_2(vx.dValue, vy.dValue));
+		}
+		else {
+			//points.push_back(Point_2(verts[i], verts[i + 1]));
+		}
 	}
 
 	std::vector<Segment_2> segments;
