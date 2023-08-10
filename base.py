@@ -186,6 +186,10 @@ def poly_vis_cgal_interior(verts: List[List[float]], query: [List[float]]) -> Li
     return vis_poly
 
 
+def float2hex(num):
+    return hex(struct.unpack('<Q', struct.pack('<d', num))[0])
+
+
 def poly_vis_cgal_boundary(verts: List[List[float]], query: [List[float]], pre_query: [List[float]]) -> List[List[List[float]]]:
     """
     Computing visibility polygon of a query point in a polygon with point on the boundary
@@ -195,12 +199,18 @@ def poly_vis_cgal_boundary(verts: List[List[float]], query: [List[float]], pre_q
     :return: vertices of the visibility polygon
     """
     arg = poly_vis_path + ' '
-    arg += '--verts='
+    verts_arg = ''
     for v in verts:
-        arg += str(v[0]) + ',' + str(v[1]) + ','
-    arg = arg[:-1] + ' '
-    arg += '--query=' + str(query[0]) + ',' + str(query[1]) + ' '
-    arg += '--pre_query=' + str(pre_query[0]) + ',' + str(pre_query[1]) + ' '
+        v0_hex = float2hex(v[0])
+        v1_hex = float2hex(v[1])
+        verts_arg += '--verts ' + str(v0_hex) + ' --verts ' + str(v1_hex) + ' '
+    arg += verts_arg
+    q0_hex = float2hex(query[0])
+    q1_hex = float2hex(query[1])
+    arg += '--query ' + q0_hex + ' --query ' + q1_hex + ' '
+    pre_q0_hex = float2hex(pre_query[0])
+    pre_q1_hex = float2hex(pre_query[1])
+    arg += '--pre_query ' + pre_q0_hex + ' --pre_query ' + pre_q1_hex + ' '
     arg += '--boundary=true'
 
     if os.name == 'posix':
@@ -211,7 +221,10 @@ def poly_vis_cgal_boundary(verts: List[List[float]], query: [List[float]], pre_q
     popen.wait()
     output = popen.stdout.read().decode("utf-8")
     output = output.split()
-    output = [struct.unpack('!d', bytes.fromhex(str(o)))[0] for o in output]
+    try:
+        output = [struct.unpack('!d', bytes.fromhex(str(o)))[0] for o in output]
+    except ValueError as e:
+        abc = 1
 
     vis_poly = []
     for i in range(0, len(output), 2):
@@ -458,7 +471,7 @@ def above_below(p, n, a, use_normal=True):
     if use_normal:
         return (p - a)@n #p@n - a@n
     else:
-        n_ = [n[1], 0-n[0]]
+        n_ = [0-n[1], n[0]]
         return p@n_ - a@n_
 
 
